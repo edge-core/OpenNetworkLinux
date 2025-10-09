@@ -200,13 +200,17 @@ fan_ctrl_policy_t  fan_thermal_policy[] = {
 
 #define FAN_SPEED_CTRL_PATH "/sys/bus/i2c/devices/157-0062/fan_duty_cycle_percentage"
 
+#if 0
 static int fan_state=LEVEL_FAN_DEF;
 static int fan_fail = 0;
 static int alarm_state = 0; /* 0->default or clear, 1-->alarm detect */
-
+#endif
 
 int onlp_sysi_platform_manage_fans(void)
     {
+    #if 0
+    // Thermal policy is executed by muxi_fan_monitor.py instead
+
     int i=0, ori_state=LEVEL_FAN_DEF, current_state=LEVEL_FAN_DEF;
     int  fd, len;
     int cur_duty_cycle, new_duty_cycle, temp=0;
@@ -419,6 +423,7 @@ int onlp_sysi_platform_manage_fans(void)
            alarm_state=0;
        }
     }
+    #endif
 
     return 0;
 }
