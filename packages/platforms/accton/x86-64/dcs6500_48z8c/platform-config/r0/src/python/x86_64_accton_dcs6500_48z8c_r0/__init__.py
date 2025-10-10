@@ -12,6 +12,17 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
     MODEL="DCS6500-48Z8C"
     SYS_OBJECT_ID=".6500.56"
 
+    def add_path(self, bin_path):
+        path = os.environ['PATH']
+        path_exist = False
+        for sub_path in path.split(":"):
+            if bin_path == sub_path:
+                path_exist = True
+
+        if(not path_exist):
+            new_path = bin_path + ":" + path
+            os.environ['PATH'] = new_path
+
     def baseconfig(self):
         self.insmod('optoe')
         self.insmod('at24_dcs6500_48z8c')
@@ -69,5 +80,17 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
         self.new_i2c_device('accton_24c64', 0x50, 0)
         self.new_i2c_device('accton_24c64', 0x51, 6)
         self.new_i2c_device('accton_24c64', 0x55, 6)
+
+
+        bin_path = "/lib/platform-config/current/onl/bin"
+        self.add_path(bin_path)
+        sbin_path = "/sbin"
+        self.add_path(sbin_path)
+        print("PATH={}".format(os.environ['PATH']))
+
+        # Wait for ready of drivers intialization
+        time.sleep(5)
+        # Thermal policy executes overhere
+        os.system("sudo /usr/bin/python -u {}/fan_monitor.py &".format(bin_path))
 
         return True

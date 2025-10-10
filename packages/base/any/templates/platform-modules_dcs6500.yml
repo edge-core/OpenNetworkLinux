@@ -24,7 +24,5 @@ packages:
     files:
       - builds/lib: /lib
       - builds/utils: /lib/platform-config/${PLATFORM_NAME}/onl/bin
-      - builds/components_fw: /lib/platform-config/${PLATFORM_NAME}/onl/components_fw
-      - builds/device: /lib/platform-config/${PLATFORM_NAME}/onl/device
 
     changelog: Changes

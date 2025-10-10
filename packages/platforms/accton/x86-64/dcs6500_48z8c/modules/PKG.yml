@@ -1,1 +1,1 @@
-!include $ONL_TEMPLATES/platform-modules.yml VENDOR=accton BASENAME=x86-64-accton-dcs6500-48z8c ARCH=amd64 KERNELS="onl-kernel-4.14-lts-x86-64-all:amd64"
+!include $ONL_TEMPLATES/platform-modules_dcs6500.yml VENDOR=accton BASENAME=x86-64-accton-dcs6500-48z8c ARCH=amd64 KERNELS="onl-kernel-4.14-lts-x86-64-all:amd64"
