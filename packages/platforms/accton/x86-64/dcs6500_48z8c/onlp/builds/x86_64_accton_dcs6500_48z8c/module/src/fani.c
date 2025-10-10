@@ -263,34 +263,7 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
  int
  onlp_fani_init(void)
  {
-     return ONLP_STATUS_E_UNSUPPORTED;
-#if 0
-    int wdt_count = 0;
-    char *wdt_status_path = FAN_NODE(fan_wdt_status);
-    char *wdt_count_path = FAN_NODE(fan_wdt_count);
-
-    /* set fan wdt count to 30,
-     * wdt timer = 0.67s * count
-     * which means wdt timer is 0.67 * 30 = 20.1s
-     */
-    wdt_count = 30;
-    if (onlp_file_write_integer(wdt_count_path, wdt_count) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_count_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    /* Disable WDT */
-    if (onlp_file_write_integer(wdt_status_path, FAN_WDT_DISABLE) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_status_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    /* Enable WDT */
-    if (onlp_file_write_integer(wdt_status_path, FAN_WDT_ENABLE) < 0) {
-        AIM_LOG_ERROR("Unable to write data to file (%s)\r\n", wdt_status_path);
-        return ONLP_STATUS_E_INTERNAL;
-    }
-
     return ONLP_STATUS_OK;
-#endif
  }
  
  int
