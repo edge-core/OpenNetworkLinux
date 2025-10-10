@@ -91,6 +91,6 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
         # Wait for ready of drivers intialization
         time.sleep(5)
         # Thermal policy executes overhere
-        os.system("sudo /usr/bin/python -u {}/muxi_fan_monitor.py &".format(bin_path))
+        os.system("sudo /usr/bin/python -u {}/fan_monitor.py &".format(bin_path))
 
         return True

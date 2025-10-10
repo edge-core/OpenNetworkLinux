@@ -263,6 +263,8 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
  int
  onlp_fani_init(void)
  {
+     return ONLP_STATUS_E_UNSUPPORTED;
+#if 0
     int wdt_count = 0;
     char *wdt_status_path = FAN_NODE(fan_wdt_status);
     char *wdt_count_path = FAN_NODE(fan_wdt_count);
@@ -288,6 +290,7 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
     }
 
     return ONLP_STATUS_OK;
+#endif
  }
  
  int
