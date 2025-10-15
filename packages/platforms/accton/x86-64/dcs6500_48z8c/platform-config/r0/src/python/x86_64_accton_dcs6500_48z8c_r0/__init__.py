@@ -1,9 +1,30 @@
 from onl.platform.base import *
 from onl.platform.accton import *
 
-import commands
+import sys
 import os.path
 import time
+
+def getstatusoutput(cmd):
+    if sys.version_info.major == 2:
+        # python2
+        import commands
+        return commands.getstatusoutput(cmd)
+    else:
+        # python3
+        import subprocess
+        return subprocess.getstatusoutput(cmd)
+
+def disable_sys_led_wdt():
+    cmd = "i2cget -f -y 157 0x62 0x85"
+    status, output = getstatusoutput(cmd)
+    if status!=0:
+        return -1
+    value = int(output, 16) & (~1)
+    cmd = "i2cset -f -y 157 0x62 0x85 0x%x" % value
+    status, output = getstatusoutput(cmd)
+    if status!=0:
+        return -1
 
 class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
                                               OnlPlatformPortConfig_48x25_8x100):
@@ -92,5 +113,7 @@ class OnlPlatform_x86_64_accton_dcs6500_48z8c_r0(OnlPlatformAccton,
         time.sleep(5)
         # Thermal policy executes overhere
         os.system("sudo /usr/bin/python -u {}/fan_monitor.py &".format(bin_path))
+
+        disable_sys_led_wdt()
 
         return True
