@@ -73,6 +73,7 @@ enum onlp_thermal_id
     THERMAL_4_ON_MAIN_BROAD,
     THERMAL_1_ON_PSU1,
     THERMAL_1_ON_PSU2,
+    THERMAL_COUNT,
 };
 
 static char* directory[] =  /* must map with onlp_thermal_id */
@@ -84,7 +85,7 @@ static char* directory[] =  /* must map with onlp_thermal_id */
     "15-004a",
     "15-004b",
     "17-0059",
-    "13-005b",	
+    "13-005b",
 };
 
 /* Static values */
@@ -106,7 +107,7 @@ static onlp_thermal_info_t linfo[] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
-	{ { ONLP_THERMAL_ID_CREATE(THERMAL_3_ON_MAIN_BROAD), "LM75-4-4B", 0}, 
+	{ { ONLP_THERMAL_ID_CREATE(THERMAL_4_ON_MAIN_BROAD), "LM75-4-4B", 0}, 
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         },
@@ -118,6 +119,58 @@ static onlp_thermal_info_t linfo[] = {
             ONLP_THERMAL_STATUS_PRESENT,
             ONLP_THERMAL_CAPS_ALL, 0, ONLP_THERMAL_THRESHOLD_INIT_DEFAULTS
         }
+};
+
+typedef struct threshold_t {
+	int warning;
+	int error;
+	int shutdown;
+} threshold_t;
+
+threshold_t threshold[FAN_DIR_COUNT][THERMAL_COUNT] = {
+	[FAN_DIR_F2B][THERMAL_CPU_CORE].warning  = 79000,
+	[FAN_DIR_F2B][THERMAL_CPU_CORE].error    = 84000,
+	[FAN_DIR_F2B][THERMAL_CPU_CORE].shutdown = 89000,
+	[FAN_DIR_F2B][THERMAL_1_ON_MAIN_BROAD].warning  = 65500,
+	[FAN_DIR_F2B][THERMAL_1_ON_MAIN_BROAD].error    = 70500,
+	[FAN_DIR_F2B][THERMAL_1_ON_MAIN_BROAD].shutdown = 75500,
+	[FAN_DIR_F2B][THERMAL_2_ON_MAIN_BROAD].warning  = 63000,
+	[FAN_DIR_F2B][THERMAL_2_ON_MAIN_BROAD].error    = 68000,
+	[FAN_DIR_F2B][THERMAL_2_ON_MAIN_BROAD].shutdown = 73000,
+	[FAN_DIR_F2B][THERMAL_3_ON_MAIN_BROAD].warning  = 59800,
+	[FAN_DIR_F2B][THERMAL_3_ON_MAIN_BROAD].error    = 64800,
+	[FAN_DIR_F2B][THERMAL_3_ON_MAIN_BROAD].shutdown = 69800,
+	[FAN_DIR_F2B][THERMAL_4_ON_MAIN_BROAD].warning  = 59300,
+	[FAN_DIR_F2B][THERMAL_4_ON_MAIN_BROAD].error    = 64300,
+	[FAN_DIR_F2B][THERMAL_4_ON_MAIN_BROAD].shutdown = 69300,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU1].warning  = 75000,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU1].error    = 80000,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU1].shutdown = 85000,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU2].warning  = 75000,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU2].error    = 80000,
+	[FAN_DIR_F2B][THERMAL_1_ON_PSU2].shutdown = 85000,
+
+	[FAN_DIR_B2F][THERMAL_CPU_CORE].warning  = 73500,
+	[FAN_DIR_B2F][THERMAL_CPU_CORE].error    = 78500,
+	[FAN_DIR_B2F][THERMAL_CPU_CORE].shutdown = 83500,
+	[FAN_DIR_B2F][THERMAL_1_ON_MAIN_BROAD].warning  = 66000,
+	[FAN_DIR_B2F][THERMAL_1_ON_MAIN_BROAD].error    = 71000,
+	[FAN_DIR_B2F][THERMAL_1_ON_MAIN_BROAD].shutdown = 76000,
+	[FAN_DIR_B2F][THERMAL_2_ON_MAIN_BROAD].warning  = 64500,
+	[FAN_DIR_B2F][THERMAL_2_ON_MAIN_BROAD].error    = 69500,
+	[FAN_DIR_B2F][THERMAL_2_ON_MAIN_BROAD].shutdown = 74500,
+	[FAN_DIR_B2F][THERMAL_3_ON_MAIN_BROAD].warning  = 61500,
+	[FAN_DIR_B2F][THERMAL_3_ON_MAIN_BROAD].error    = 66500,
+	[FAN_DIR_B2F][THERMAL_3_ON_MAIN_BROAD].shutdown = 71500,
+	[FAN_DIR_B2F][THERMAL_4_ON_MAIN_BROAD].warning  = 59000,
+	[FAN_DIR_B2F][THERMAL_4_ON_MAIN_BROAD].error    = 64000,
+	[FAN_DIR_B2F][THERMAL_4_ON_MAIN_BROAD].shutdown = 69000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU1].warning  = 75000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU1].error    = 80000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU1].shutdown = 85000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU2].warning  = 75000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU2].error    = 80000,
+	[FAN_DIR_B2F][THERMAL_1_ON_PSU2].shutdown = 85000,
 };
 
 int initialize_regex() {
@@ -227,15 +280,20 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
 {
     int   tid, psu_id;
     int   val = 0;
-	char *format   = NULL;
-	char  path[64] = {0};
+    char *format   = NULL;
+    char  path[64] = {0};
+    enum onlp_fan_dir dir;
     VALIDATE(id);
-	
+
     tid = ONLP_OID_ID_GET(id);
+    dir = onlp_get_fan_dir();
     int coretemp_max = 0, coretemp_temp = 0;
-	
-    /* Set the onlp_oid_hdr_t and capabilities */		
+
+    /* Set the onlp_oid_hdr_t and capabilities */
     *info = linfo[tid];
+    info->thresholds.warning  = threshold[dir][tid].warning;
+    info->thresholds.error    = threshold[dir][tid].error;
+    info->thresholds.shutdown = threshold[dir][tid].shutdown;
 
     if(tid == THERMAL_CPU_CORE) {
         for (size_t i = 0; i < sysfs_count; i++) {
@@ -252,27 +310,27 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
         return ONLP_STATUS_OK;
     }
 
-	switch (tid) {
-    	case THERMAL_1_ON_MAIN_BROAD:
-    	case THERMAL_2_ON_MAIN_BROAD:
-    	case THERMAL_3_ON_MAIN_BROAD:
-    	case THERMAL_4_ON_MAIN_BROAD:
-			format = THERMAL_PATH_FORMAT;
-			break;
-    	case THERMAL_1_ON_PSU1:
-    	case THERMAL_1_ON_PSU2:
-			format = PSU_THERMAL_PATH_FORMAT;
+    switch (tid) {
+        case THERMAL_1_ON_MAIN_BROAD:
+        case THERMAL_2_ON_MAIN_BROAD:
+        case THERMAL_3_ON_MAIN_BROAD:
+        case THERMAL_4_ON_MAIN_BROAD:
+            format = THERMAL_PATH_FORMAT;
+            break;
+        case THERMAL_1_ON_PSU1:
+        case THERMAL_1_ON_PSU2:
+            format = PSU_THERMAL_PATH_FORMAT;
 
             psu_id = ( tid == THERMAL_1_ON_PSU1 ) ? PSU1_ID : PSU2_ID;
 
             /* Get power good status */
             psu_status_info_get(psu_id, "psu_power_good", &val);
 
-			break;
-		default:
-			return ONLP_STATUS_E_INVALID;
-	};
-	
+            break;
+        default:
+            return ONLP_STATUS_E_INVALID;
+    };
+
     /* get path */
     sprintf(path, format, directory[tid], tid);
 
@@ -289,7 +347,6 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
         }
     }
 
-    return ONLP_STATUS_OK;								
+    return ONLP_STATUS_OK;
 }
-
 

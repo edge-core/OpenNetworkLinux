@@ -94,6 +94,14 @@ enum reset_dev_type {
     WARM_RESET_MAX
 };
 
+enum onlp_fan_dir {
+	FAN_DIR_F2B,
+	FAN_DIR_B2F,
+	FAN_DIR_COUNT,
+};
+
+enum onlp_fan_dir onlp_get_fan_dir(void);
+
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int psu_pmbus_serial_number_get(int id, char *serial, int serial_len);
 int psu_acbel_serial_number_get(int id, char *serial, int serial_len);
