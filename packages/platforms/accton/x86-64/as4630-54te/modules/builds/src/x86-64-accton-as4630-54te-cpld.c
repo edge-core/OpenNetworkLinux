@@ -41,6 +41,7 @@
 #define FAN_DUTY_CYCLE_REG_MASK 0x1F
 #define FAN_MAX_DUTY_CYCLE 100
 #define FAN_REG_VAL_TO_SPEED_RPM_STEP 114 // R.P.M = read value x3.79*60/2
+#define MAC_PCIE_RESET_DELAY            200 /* ms */
 
 static LIST_HEAD(cpld_client_list);
 static struct mutex list_lock;
@@ -104,6 +105,7 @@ enum as4630_54te_cpld_sysfs_attributes {
 	MAJOR_VERSION,
 	MINOR_VERSION,
 	BIOS_FLASH_ID,
+	RESET_MAC,
 	ACCESS,
 	/* transceiver attributes */
 	MODULE_PRESENT_ALL,
@@ -161,6 +163,10 @@ static ssize_t show_version(struct device *dev, struct device_attribute *da,
 			char *buf);
 static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *da,
             char *buf);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+			const char *buf, size_t count);
 static int as4630_54te_cpld_read_internal(struct i2c_client *client,
 			u8 reg);
 static int as4630_54te_cpld_write_internal(struct i2c_client *client,
@@ -234,6 +240,7 @@ static SENSOR_DEVICE_ATTR(module_rx_los_all, S_IRUGO, show_rxlos_all, \
 static SENSOR_DEVICE_ATTR(major_version, S_IRUGO, show_version, NULL, MAJOR_VERSION);
 static SENSOR_DEVICE_ATTR(minor_version, S_IRUGO, show_version, NULL, MINOR_VERSION);
 static SENSOR_DEVICE_ATTR(bios_flash_id, S_IRUGO, show_bios_flash_id, NULL, BIOS_FLASH_ID);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IRUGO | S_IWUSR, get_reset, set_reset, RESET_MAC);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
 
 /* transceiver attributes */
@@ -253,6 +260,7 @@ DECLARE_FAN_DUTY_CYCLE_SENSOR_DEV_ATTR(1);
 static struct attribute *as4630_54te_cpld_attributes[] = {
 	&sensor_dev_attr_major_version.dev_attr.attr,
 	&sensor_dev_attr_minor_version.dev_attr.attr,
+	&sensor_dev_attr_reset_mac.dev_attr.attr,
 	&sensor_dev_attr_access.dev_attr.attr,
 	&sensor_dev_attr_module_present_all.dev_attr.attr,
 	&sensor_dev_attr_module_rx_los_all.dev_attr.attr,
@@ -612,6 +620,113 @@ static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *a
     val = i2c_smbus_read_byte_data(client, 0x11);
 
     return sprintf(buf, "%d\n", ( ((val >> 2) & 0x1) == 1 ) ? 1 : 2); /*(BIT2) 1: master, 2: slave*/
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as4630_54te_cpld_data *data = i2c_get_clientdata(client);
+	
+	int status = 0, val = 0;
+	u8 reg = 0, mask_mac = 0x40, mask_pcie = 0x20, mask = 0;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0xC;
+		mask = mask_mac | mask_pcie;
+		break;
+	default:
+		return 0;
+	}
+
+	mutex_lock(&data->update_lock);
+	status = as4630_54te_cpld_read_internal(client, reg);
+
+	if (unlikely(status < 0)) {
+		goto exit;
+	}
+	mutex_unlock(&data->update_lock);
+
+	val = ((status & mask) == 0x0) ? 1 : 0;
+	return sprintf(buf, "%d\n", val);
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+		       const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as4630_54te_cpld_data *data = i2c_get_clientdata(client);
+	long value;
+	int status;
+	u8 reg = 0, mask_mac, mask_pcie = 0;
+
+	status = kstrtol(buf, 10, &value);
+
+	if (status)
+		return status;
+
+	if (value != 1)
+		return -EINVAL;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0xC;
+		mask_mac = 0x40;
+		mask_pcie = 0x20;
+
+		mutex_lock(&data->update_lock);
+
+		/* put mac & pcie to low */
+		status = as4630_54te_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status &= ~(mask_mac | mask_pcie);
+		status = as4630_54te_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		/* put mac to high */
+		status = as4630_54te_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_mac;
+		status = as4630_54te_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		msleep(MAC_PCIE_RESET_DELAY);
+
+		/* put pcie to high */
+		status = as4630_54te_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_pcie;
+		status = as4630_54te_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		mutex_unlock(&data->update_lock);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return count;
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
 }
 
 /* fan utility functions

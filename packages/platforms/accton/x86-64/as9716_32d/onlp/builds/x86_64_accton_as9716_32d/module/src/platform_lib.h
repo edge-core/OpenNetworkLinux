@@ -65,6 +65,8 @@
 #define IDPROM_PATH_1 "/sys/class/i2c-adapter/i2c-0/0-0057/eeprom"
 #define IDPROM_PATH_2 "/sys/class/i2c-adapter/i2c-0/0-0056/eeprom"
 
+#define WARM_RESET_FORMAT "/sys/bus/i2c/devices/19-0060/reset_mac"
+
 int onlp_file_write_integer(char *filename, int value);
 int onlp_file_read_binary(char *filename, char *buffer, int buf_size, int data_len);
 int onlp_file_read_string(char *filename, char *buffer, int buf_size, int data_len);
@@ -82,6 +84,11 @@ typedef enum psu_type {
     PSU_TYPE_3Y_YESM1300AM_2R_B2F,
     PSU_TYPE_YM2651Y,
 } psu_type_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int psu_serial_number_get(int id, char *serial, int serial_len, char* model_name);

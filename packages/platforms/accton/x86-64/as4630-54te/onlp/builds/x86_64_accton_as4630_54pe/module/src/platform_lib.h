@@ -59,6 +59,8 @@
 #define IDPROM_PATH_1 "/sys/bus/i2c/devices/0-0057/eeprom"
 #define IDPROM_PATH_2 "/sys/bus/i2c/devices/1-0057/eeprom"
 
+#define WARM_RESET_FORMAT "/sys/bus/i2c/devices/3-0060/reset_mac"
+
 int psu_pmbus_info_get(int id, char *node, int *value);
 int psu_status_info_get(int id, char *node, int *value);
 int get_i2c_bus_offset(int *bus_offset);
@@ -71,6 +73,11 @@ typedef enum psu_type {
     PSU_TYPE_UPD1501SA_1190G_F2B,
     PSU_TYPE_UPD1501SA_1290G_B2F
 } psu_type_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int get_psu_eeprom_str(int id, char *data_buf, int data_len, char *data_name);
