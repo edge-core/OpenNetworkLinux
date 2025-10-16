@@ -68,6 +68,8 @@
 
 #define IDPROM_PATH "/sys/class/i2c-adapter/i2c-0/0-0056/eeprom"
 
+#define WARM_RESET_FORMAT "/sys/bus/i2c/devices/11-0060/reset_mac"
+
 int onlp_file_write_integer(char *filename, int value);
 int onlp_file_read_binary(char *filename, char *buffer, int buf_size, int data_len);
 int onlp_file_read_string(char *filename, char *buffer, int buf_size, int data_len);
@@ -86,6 +88,11 @@ typedef enum psu_type {
     PSU_TYPE_DC_48V_F2B,
     PSU_TYPE_DC_48V_B2F
 } psu_type_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int psu_pmbus_serial_number_get(int id, char *serial, int serial_len);
