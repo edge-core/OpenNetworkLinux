@@ -407,6 +407,27 @@ static ssize_t show_version(struct device *dev, struct device_attribute *attr, c
     return sprintf(buf, "%d\n", val);
 }
 
+static umode_t as5835_54x_fan_is_visible(const void *drvdata,
+                  enum hwmon_sensor_types type,
+                  u32 attr, int channel)
+{
+    return 0;
+}
+
+static const struct hwmon_channel_info *as5835_54x_fan_info[] = {
+    HWMON_CHANNEL_INFO(fan, HWMON_F_ENABLE),
+    NULL,
+};
+
+static const struct hwmon_ops as5835_54x_fan_hwmon_ops = {
+    .is_visible = as5835_54x_fan_is_visible,
+};
+
+static const struct hwmon_chip_info as5835_54x_fan_chip_info = {
+    .ops = &as5835_54x_fan_hwmon_ops,
+    .info = as5835_54x_fan_info,
+};
+
 static int as5835_54x_fan_probe(struct i2c_client *client,
             const struct i2c_device_id *dev_id)
 {
@@ -437,7 +458,7 @@ static int as5835_54x_fan_probe(struct i2c_client *client,
     }
 
     data->hwmon_dev = hwmon_device_register_with_info(&client->dev, "as5835_54x_fan",
-                                                      NULL, NULL, NULL);
+                                                      NULL, &as5835_54x_fan_chip_info, NULL);
     if (IS_ERR(data->hwmon_dev)) {
         status = PTR_ERR(data->hwmon_dev);
         goto exit_remove;
@@ -456,13 +477,11 @@ exit:
     return status;
 }
 
-static int as5835_54x_fan_remove(struct i2c_client *client)
+static void as5835_54x_fan_remove(struct i2c_client *client)
 {
     struct as5835_54x_fan_data *data = i2c_get_clientdata(client);
     hwmon_device_unregister(data->hwmon_dev);
     sysfs_remove_group(&client->dev.kobj, &as5835_54x_fan_group);
-    
-    return 0;
 }
 
 /* Addresses to scan */

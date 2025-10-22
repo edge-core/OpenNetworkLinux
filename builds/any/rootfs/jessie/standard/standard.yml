@@ -43,14 +43,16 @@ Multistrap:
 
   ONL:
     packages: *Packages
-    source: http://apt.opennetlinux.org/debian
-    suite: unstable
+    source: http://archive.debian.org/debian/
+    suite: ${ONL_DEBIAN_SUITE}
+    keyring: debian-archive-keyring
     omitdebsrc: true
 
   ONL-Local:
     packages: *Packages
-    source: http://${APT_CACHE}apt.opennetlinux.org/debian
-    suite: unstable
+    source: http://${APT_CACHE}archive.debian.org/debian/
+    suite: ${ONL_DEBIAN_SUITE}
+    keyring: debian-archive-keyring
     omitdebsrc: true
 
   Local-All:

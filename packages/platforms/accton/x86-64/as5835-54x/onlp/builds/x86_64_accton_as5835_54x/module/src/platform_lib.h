@@ -49,7 +49,8 @@
 #define FAN_BOARD_PATH	"/sys/bus/i2c/devices/3-0063/"
 #define FAN_NODE(node)	FAN_BOARD_PATH#node
 
-#define IDPROM_PATH "/sys/class/i2c-adapter/i2c-1/1-0057/eeprom"
+#define IDPROM_PATH_1 "/sys/bus/i2c/devices/0-0057/eeprom"
+#define IDPROM_PATH_2 "/sys/bus/i2c/devices/1-0057/eeprom"
 
 int psu_ym1401_pmbus_info_get(int id, char *node, int *value);
 int psu_ym1401_pmbus_info_set(int id, char *node, int value);
@@ -69,11 +70,15 @@ enum onlp_thermal_id
 typedef enum psu_type {
     PSU_TYPE_UNKNOWN,
     PSU_TYPE_AC_F2B,
-    PSU_TYPE_AC_B2F
+    PSU_TYPE_AC_B2F,
+    PSU_TYPE_DC_F2B,
+    PSU_TYPE_DC_B2F
 } psu_type_t;
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int get_psu_serial_number(int id, char *serial, int serial_len);
+
+#define IS_DC_INPUT(psu_type) (PSU_TYPE_DC_F2B == psu_type || PSU_TYPE_DC_B2F == psu_type)
 
 #define DEBUG_MODE 0
 

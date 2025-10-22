@@ -58,7 +58,12 @@ int
 onlp_sysi_onie_data_get(uint8_t** data, int* size)
 {
     uint8_t* rdata = aim_zmalloc(256);
-    if(onlp_file_read(rdata, 256, size, IDPROM_PATH) == ONLP_STATUS_OK) {
+    if (onlp_file_read(rdata, 256, size, IDPROM_PATH_1) == ONLP_STATUS_OK) {
+        if(*size == 256) {
+            *data = rdata;
+            return ONLP_STATUS_OK;
+        }
+    } else if (onlp_file_read(rdata, 256, size, IDPROM_PATH_2) == ONLP_STATUS_OK) {
         if(*size == 256) {
             *data = rdata;
             return ONLP_STATUS_OK;
