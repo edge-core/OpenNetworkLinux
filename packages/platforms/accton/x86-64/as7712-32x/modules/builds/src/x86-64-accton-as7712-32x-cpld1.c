@@ -45,6 +45,8 @@ struct cpld_client_node {
 #define I2C_RW_RETRY_COUNT				10
 #define I2C_RW_RETRY_INTERVAL			60 /* ms */
 
+#define MAC_PCIE_RESET_DELAY			200 /* ms */
+
 static ssize_t show_present(struct device *dev, struct device_attribute *da,
              char *buf);
 static ssize_t show_present_all(struct device *dev, struct device_attribute *da,
@@ -53,6 +55,10 @@ static ssize_t access(struct device *dev, struct device_attribute *da,
 			const char *buf, size_t count);
 static ssize_t show_version(struct device *dev, struct device_attribute *da,
              char *buf);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+			const char *buf, size_t count);
 static int as7712_32x_cpld_read_internal(struct i2c_client *client, u8 reg);
 static int as7712_32x_cpld_write_internal(struct i2c_client *client, u8 reg, u8 value);
 
@@ -77,6 +83,7 @@ static const unsigned short normal_i2c[] = { I2C_CLIENT_END };
 enum as7712_32x_cpld_sysfs_attributes {
 	CPLD_VERSION,
 	ACCESS,
+	RESET_MAC,
 	MODULE_PRESENT_ALL,
 	/* transceiver attributes */
 	TRANSCEIVER_PRESENT_ATTR_ID(1),
@@ -130,6 +137,7 @@ MODULE_DEVICE_TABLE(i2c, as7712_32x_cpld_id);
 #define DECLARE_TRANSCEIVER_ATTR(index)  &sensor_dev_attr_module_present_##index.dev_attr.attr
 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IRUGO | S_IWUSR, get_reset, set_reset, RESET_MAC);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
 /* transceiver attributes */
 static SENSOR_DEVICE_ATTR(module_present_all, S_IRUGO, show_present_all, NULL, MODULE_PRESENT_ALL);
@@ -168,6 +176,7 @@ DECLARE_TRANSCEIVER_SENSOR_DEVICE_ATTR(32);
 
 static struct attribute *as7712_32x_cpld_attributes[] = {
 	&sensor_dev_attr_version.dev_attr.attr,
+	&sensor_dev_attr_reset_mac.dev_attr.attr,
 	&sensor_dev_attr_access.dev_attr.attr,
 	/* transceiver attributes */
 	&sensor_dev_attr_module_present_all.dev_attr.attr,
@@ -336,6 +345,116 @@ exit:
 	mutex_unlock(&data->update_lock);
 	return status;
 }
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as7712_32x_cpld_data *data = i2c_get_clientdata(client);
+	
+	int status = 0, val = 0;
+	u8 reg = 0, mask = 0, mask_mac, mask_pcie;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x8;
+		mask_mac = 0x80;
+		mask_pcie = 0x10;
+		mask = mask_mac | mask_pcie;
+		break;
+	default:
+		return 0;
+	}
+
+	mutex_lock(&data->update_lock);
+	status = as7712_32x_cpld_read_internal(client, reg);
+
+	if (unlikely(status < 0)) {
+		goto exit;
+	}
+	mutex_unlock(&data->update_lock);
+
+	val = ((status & mask) == 0x0) ? 1 : 0;
+	return sprintf(buf, "%d\n", val);
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+		       const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as7712_32x_cpld_data *data = i2c_get_clientdata(client);
+	long value;
+	int status;
+	u8 reg = 0, mask_mac, mask_pcie;
+
+	status = kstrtol(buf, 10, &value);
+
+	if (status)
+		return status;
+
+	if (value != 1)
+		return -EINVAL;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x8;
+		mask_mac = 0x80;
+		mask_pcie = 0x10;
+
+		mutex_lock(&data->update_lock);
+
+		/* put mac & pcie to low */
+		status = as7712_32x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status &= ~(mask_mac | mask_pcie);
+		status = as7712_32x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		/* put mac to high */
+		status = as7712_32x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_mac;
+		status = as7712_32x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		msleep(MAC_PCIE_RESET_DELAY);
+
+		/* put pcie to high */
+		status = as7712_32x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+		
+		status |= mask_pcie;
+		status = as7712_32x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		mutex_unlock(&data->update_lock);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return count;
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
 
 static ssize_t access(struct device *dev, struct device_attribute *da,
 			const char *buf, size_t count)
