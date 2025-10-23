@@ -42,6 +42,8 @@
 #define IPMI_GET_FAN_CONTROLLER_CMD 0x66
 #define IPMI_SET_FAN_CONTROLLER_CMD 0x67
 #define IPMI_SEND_THERMAL_DATA_CMD 0x13
+#define IPMI_RESET_CMD 0x65
+#define IPMI_RESET_CMD_LENGTH 6
 
 static int as9817_64_sys_probe(struct platform_device *pdev);
 static int as9817_64_sys_remove(struct platform_device *pdev);
@@ -55,6 +57,10 @@ static ssize_t set_bmc_fan_controller(struct device *dev, struct device_attribut
             const char *buf, size_t count);
 static ssize_t set_bmc_thermal_data(struct device *dev, struct device_attribute *da,
             const char *buf, size_t count);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+            char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+            const char *buf, size_t count);
 
 struct as9817_64_sys_data {
     struct platform_device *pdev;
@@ -65,6 +71,8 @@ struct as9817_64_sys_data {
     unsigned char ipmi_resp_cpld[2];
     unsigned char ipmi_resp_fan_controller[1];
     unsigned char ipmi_tx_data[3];
+    unsigned char ipmi_resp_rst[2];
+    unsigned char ipmi_tx_data_rst[IPMI_RESET_CMD_LENGTH];
 };
 
 struct as9817_64_sys_data *data = NULL;
@@ -82,7 +90,8 @@ enum as9817_64_sys_sysfs_attrs {
     FPGA_VER, /* FPGA version */
     OTP_PROTECT,
     FAN_CONTROLLER,
-    THERMAL_DATA
+    THERMAL_DATA,
+    RESET_MAC
 };
 
 static SENSOR_DEVICE_ATTR(fpga_version, S_IRUGO, show_version, NULL, FPGA_VER);
@@ -91,12 +100,15 @@ static SENSOR_DEVICE_ATTR(bmc_fan_controller, S_IRUGO|S_IWUSR,
                           get_bmc_fan_controller, set_bmc_fan_controller, 
                           FAN_CONTROLLER);
 static SENSOR_DEVICE_ATTR(bmc_thermal_data, S_IWUSR, NULL, set_bmc_thermal_data, THERMAL_DATA);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IWUSR | S_IRUGO, get_reset, \
+                          set_reset, RESET_MAC);
 
 static struct attribute *as9817_64_sys_attributes[] = {
     &sensor_dev_attr_fpga_version.dev_attr.attr,
     &sensor_dev_attr_otp_protect.dev_attr.attr,
     &sensor_dev_attr_bmc_fan_controller.dev_attr.attr,
     &sensor_dev_attr_bmc_thermal_data.dev_attr.attr,
+    &sensor_dev_attr_reset_mac.dev_attr.attr,
     NULL
 };
 
@@ -313,6 +325,72 @@ static ssize_t set_bmc_thermal_data(struct device *dev, struct device_attribute 
 
     if (unlikely(data->ipmi.rx_result != 0)) {
         status = -EINVAL;
+        goto exit;
+    }
+
+    status = count;
+
+exit:
+    mutex_unlock(&data->update_lock);
+    return status;
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+                         char *buf)
+{
+    int status = 0;
+
+    mutex_lock(&data->update_lock);
+    status = ipmi_send_message(&data->ipmi, IPMI_RESET_CMD, NULL, 0,
+                       data->ipmi_resp_rst, sizeof(data->ipmi_resp_rst));
+    if (unlikely(status != 0))
+        goto exit;
+
+    if (unlikely(data->ipmi.rx_result != 0)) {
+        status = -EIO;
+        goto exit;
+    }
+
+    mutex_unlock(&data->update_lock);
+    return sprintf(buf, "0x%x 0x%x", data->ipmi_resp_rst[0], data->ipmi_resp_rst[1]);
+
+exit:
+    mutex_unlock(&data->update_lock);
+    return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+                         const char *buf, size_t count)
+{
+    u32 magic[2];
+    int status;
+
+    if (sscanf(buf, "0x%x 0x%x", &magic[0], &magic[1]) != 2)
+        return -EINVAL;
+
+    if (magic[0] > 0xFF || magic[1] > 0xFF)
+        return -EINVAL;
+
+    mutex_lock(&data->update_lock);
+
+    /* Send IPMI write command */
+    
+    data->ipmi_tx_data_rst[0] = 0;
+    data->ipmi_tx_data_rst[1] = 0;
+    data->ipmi_tx_data_rst[2] = 1;
+    data->ipmi_tx_data_rst[3] = 1;
+    data->ipmi_tx_data_rst[4] = magic[0];
+    data->ipmi_tx_data_rst[5] = magic[1];
+
+    status = ipmi_send_message(&data->ipmi, IPMI_RESET_CMD,
+                   data->ipmi_tx_data_rst,
+                   sizeof(data->ipmi_tx_data_rst), NULL, 0);
+
+    if (unlikely(status != 0))
+        goto exit;
+
+    if (unlikely(data->ipmi.rx_result != 0)) {
+        status = -EIO;
         goto exit;
     }
 
