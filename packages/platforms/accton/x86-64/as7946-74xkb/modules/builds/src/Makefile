@@ -1,3 +1,4 @@
+obj-m += accton_ipmi_intf.o
 obj-m += x86-64-accton-as7946-74xkb-cpld.o
 obj-m += x86-64-accton-as7946-74xkb-fan.o
 obj-m += x86-64-accton-as7946-74xkb-leds.o
