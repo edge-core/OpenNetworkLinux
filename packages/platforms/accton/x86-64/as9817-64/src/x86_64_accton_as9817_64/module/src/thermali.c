@@ -278,7 +278,7 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     if (tid >= psu_tid_start) {
         psu_id = ( tid < (psu_tid_start + NUM_OF_THERMAL_PER_PSU) ) ? PSU1_ID : PSU2_ID;
         /* Get power good status */
-        onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (psu_id-1), psu_id, "power_good");
+        onlp_file_read_int(&val, PSU_SYSFS_FORMAT, psu_id, "power_good");
         if(val != PSU_STATUS_POWER_GOOD) {
             info->status |= ONLP_THERMAL_STATUS_FAILED;
         }

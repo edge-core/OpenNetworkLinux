@@ -837,7 +837,7 @@ static int as9817_64_psu_probe(struct platform_device *pdev)
 
     for(i = 0; i < 2; i++) {
         hwmon_dev = hwmon_device_register_with_info(&pdev->dev, DRVNAME, 
-                        NULL, NULL, as9817_64_psu_groups[i]);
+                        NULL, &as9817_64_psu_chip_info, as9817_64_psu_groups[i]);
         if (IS_ERR(hwmon_dev)) {
             status = PTR_ERR(hwmon_dev);
             return status;

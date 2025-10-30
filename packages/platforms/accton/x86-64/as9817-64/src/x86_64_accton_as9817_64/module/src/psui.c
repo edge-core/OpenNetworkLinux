@@ -168,16 +168,5 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
         AIM_FREE_IF_PTR(str);
     }
 
-    /* Get power good status */
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "power_good");
-    if (ret < 0) {
-        info->status |=  ONLP_PSU_STATUS_FAILED;
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    if (val != PSU_STATUS_POWER_GOOD) {
-        info->status |=  ONLP_PSU_STATUS_UNPLUGGED;
-        info->caps = 0;
-    }
-
     return ret;
 }

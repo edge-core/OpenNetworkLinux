@@ -202,7 +202,7 @@ _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
     info->percentage = (info->rpm * 100)/MAX_PSU_FAN_SPEED;
 
     /* Get power good status */
-    onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "power_good");
+    onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "power_good");
     if(val != PSU_STATUS_POWER_GOOD) {
         info->status |= ONLP_FAN_STATUS_FAILED;
     }
