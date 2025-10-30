@@ -24,7 +24,7 @@
 #define ACCTON_IPMI_NETFN 0x34
 #define IPMI_TIMEOUT (5 * HZ)
 #define IPMI_ERR_RETRY_TIMES 1
-#define RAW_CMD_BUF_SIZE 32
+#define RAW_CMD_BUF_SIZE 40
 
 static void ipmi_msg_handler(struct ipmi_recv_msg *msg, void *user_msg_data);
 
