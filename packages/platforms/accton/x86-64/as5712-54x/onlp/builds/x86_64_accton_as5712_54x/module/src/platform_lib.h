@@ -56,6 +56,8 @@
 
 #define IDPROM_PATH "/sys/devices/pci0000:00/0000:00:13.0/i2c-1/1-0057/eeprom"
 
+#define WARM_RESET_FORMAT "/sys/bus/i2c/devices/0-0060/reset_mac"
+
 int deviceNodeWriteInt(char *filename, int value, int data_len);
 int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len);
 int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len);
@@ -69,6 +71,11 @@ typedef enum psu_type {
     PSU_TYPE_DC_48V_F2B,
     PSU_TYPE_DC_48V_B2F
 } psu_type_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int psu_ym2401_pmbus_info_get(int id, char *node, int *value);

@@ -40,6 +40,7 @@
 
 #define I2C_RW_RETRY_COUNT				10
 #define I2C_RW_RETRY_INTERVAL			60 /* ms */
+#define MAC_PHY_RESET_DELAY			1 /* ms */
 
 #define NUM_OF_CPLD1_CHANS 0x0
 #define NUM_OF_CPLD2_CHANS 0x18
@@ -106,6 +107,7 @@ MODULE_DEVICE_TABLE(i2c, as5712_54x_cpld_mux_id);
 
 enum as5712_54x_cpld1_sysfs_attributes {
 	CPLD_VERSION,
+	RESET_MAC,
 	ACCESS,
 	MODULE_PRESENT_ALL,
 	MODULE_RXLOS_ALL,
@@ -324,6 +326,10 @@ static ssize_t access(struct device *dev, struct device_attribute *da,
 			const char *buf, size_t count);
 static ssize_t show_version(struct device *dev, struct device_attribute *da,
              char *buf);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+			const char *buf, size_t count);
 static int as5712_54x_cpld_read_internal(struct i2c_client *client, u8 reg);
 static int as5712_54x_cpld_write_internal(struct i2c_client *client, u8 reg, u8 value);
 
@@ -342,6 +348,7 @@ static int as5712_54x_cpld_write_internal(struct i2c_client *client, u8 reg, u8 
 	&sensor_dev_attr_module_tx_fault_##index.dev_attr.attr
 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IRUGO | S_IWUSR, get_reset, set_reset, RESET_MAC);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
 /* transceiver attributes */
 static SENSOR_DEVICE_ATTR(module_present_all, S_IRUGO, show_present_all, NULL, MODULE_PRESENT_ALL);
@@ -451,8 +458,9 @@ DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(47);
 DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(48);
 
 static struct attribute *as5712_54x_cpld1_attributes[] = {
-    &sensor_dev_attr_version.dev_attr.attr,
-    &sensor_dev_attr_access.dev_attr.attr,
+	&sensor_dev_attr_version.dev_attr.attr,
+	&sensor_dev_attr_reset_mac.dev_attr.attr,
+	&sensor_dev_attr_access.dev_attr.attr,
 	NULL
 };
 
@@ -884,6 +892,104 @@ static ssize_t set_tx_disable(struct device *dev, struct device_attribute *da,
     
     mutex_unlock(&data->update_lock);
     return count;
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct i2c_mux_core *muxc = i2c_get_clientdata(client);
+	struct as5712_54x_cpld_data *data = i2c_mux_priv(muxc);
+	
+	int status = 0, val = 0;
+	u8 reg = 0, mask_mac = 0;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x4;
+		mask_mac = 0x08;
+		break;
+	default:
+		return 0;
+	}
+
+	mutex_lock(&data->update_lock);
+	status = as5712_54x_cpld_read_internal(client, reg);
+
+	if (unlikely(status < 0)) {
+		goto exit;
+	}
+	mutex_unlock(&data->update_lock);
+
+	val = ((status & mask_mac) == 0x0) ? 1 : 0;
+	return sprintf(buf, "%d\n", val);
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+		       const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct i2c_mux_core *muxc = i2c_get_clientdata(client);
+	struct as5712_54x_cpld_data *data = i2c_mux_priv(muxc);
+	long value = 0;
+	int status = 0;
+	u8 reg = 0, mask_mac = 0;
+
+	status = kstrtol(buf, 10, &value);
+
+	if (status)
+		return status;
+
+	if (value != 1)
+		return -EINVAL;
+	
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x4;
+		mask_mac = 0x08;
+
+		mutex_lock(&data->update_lock);
+
+		/* put mac to low */
+		status = as5712_54x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status &= ~mask_mac;
+		status = as5712_54x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		msleep(MAC_PHY_RESET_DELAY);
+
+		/* put mac to high */
+		status = as5712_54x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_mac;
+		status = as5712_54x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		mutex_unlock(&data->update_lock);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return count;
 
 exit:
 	mutex_unlock(&data->update_lock);
