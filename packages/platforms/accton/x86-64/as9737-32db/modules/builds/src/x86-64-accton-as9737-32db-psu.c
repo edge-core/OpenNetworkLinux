@@ -809,6 +809,27 @@ exit:
 	return error;
 }
 
+static umode_t as9737_32db_psu_is_visible(const void *drvdata,
+                  enum hwmon_sensor_types type,
+                  u32 attr, int channel)
+{
+	return 0;
+}
+
+static const struct hwmon_channel_info *as9737_32db_psu_info[] = {
+	HWMON_CHANNEL_INFO(power, HWMON_P_ENABLE),
+	NULL,
+};
+
+static const struct hwmon_ops as9737_32db_psu_hwmon_ops = {
+	.is_visible = as9737_32db_psu_is_visible,
+};
+
+static const struct hwmon_chip_info as9737_32db_psu_chip_info = {
+	.ops = &as9737_32db_psu_hwmon_ops,
+	.info = as9737_32db_psu_info,
+};
+
 static int as9737_32db_psu_probe(struct platform_device *pdev)
 {
 	int status = 0;
@@ -817,7 +838,7 @@ static int as9737_32db_psu_probe(struct platform_device *pdev)
 
 	for(i = 0; i < 2; i++) {
 		hwmon_dev = hwmon_device_register_with_info(&pdev->dev, DRVNAME, 
-					NULL, NULL, as9737_32db_psu_groups[i]);
+					NULL, &as9737_32db_psu_chip_info, as9737_32db_psu_groups[i]);
 
 		if (IS_ERR(hwmon_dev)) {
 			status = PTR_ERR(hwmon_dev);
