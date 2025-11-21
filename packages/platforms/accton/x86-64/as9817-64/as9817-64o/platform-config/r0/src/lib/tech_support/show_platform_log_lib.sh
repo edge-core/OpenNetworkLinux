@@ -34,6 +34,8 @@ psu1_present_sysfs="/sys/devices/platform/${ipmi_psu_device_dir}.0/hwmon/${psu1_
 psu2_present_sysfs="/sys/devices/platform/${ipmi_psu_device_dir}.1/hwmon/${psu2_hwmon}/psu2_present"
 psu1_power_good_sysfs="/sys/devices/platform/${ipmi_psu_device_dir}.0/hwmon/${psu1_hwmon}/psu1_power_good"
 psu2_power_good_sysfs="/sys/devices/platform/${ipmi_psu_device_dir}.1/hwmon/${psu2_hwmon}/psu2_power_good"
+bmc_psu1_id=1
+bmc_psu2_id=2
 
 # QSFP/SFP
 ipmi_sfp_device_dir="as9817_64_fpga"

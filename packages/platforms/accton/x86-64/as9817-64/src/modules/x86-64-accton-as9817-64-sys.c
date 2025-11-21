@@ -31,12 +31,10 @@
 #include <linux/ipmi_smi.h>
 #include <linux/platform_device.h>
 #include <linux/string_helpers.h>
+#include "accton_ipmi_intf.h"
 
 #define DRVNAME "as9817_64_sys"
-#define ACCTON_IPMI_NETFN 0x34
 
-#define IPMI_TIMEOUT (5 * HZ)
-#define IPMI_ERR_RETRY_TIMES 1
 #define IPMI_READ_MAX_LEN 128
 
 #define IPMI_CPLD_READ_CMD 0x20
@@ -44,8 +42,9 @@
 #define IPMI_GET_FAN_CONTROLLER_CMD 0x66
 #define IPMI_SET_FAN_CONTROLLER_CMD 0x67
 #define IPMI_SEND_THERMAL_DATA_CMD 0x13
+#define IPMI_RESET_CMD 0x65
+#define IPMI_RESET_CMD_LENGTH 6
 
-static void ipmi_msg_handler(struct ipmi_recv_msg *msg, void *user_msg_data);
 static int as9817_64_sys_probe(struct platform_device *pdev);
 static int as9817_64_sys_remove(struct platform_device *pdev);
 static ssize_t show_version(struct device *dev,
@@ -58,23 +57,10 @@ static ssize_t set_bmc_fan_controller(struct device *dev, struct device_attribut
             const char *buf, size_t count);
 static ssize_t set_bmc_thermal_data(struct device *dev, struct device_attribute *da,
             const char *buf, size_t count);
-
-struct ipmi_data {
-    struct completion read_complete;
-    struct ipmi_addr address;
-    struct ipmi_user * user;
-    int interface;
-
-    struct kernel_ipmi_msg tx_message;
-    long tx_msgid;
-
-    void *rx_msg_data;
-    unsigned short rx_msg_len;
-    unsigned char rx_result;
-    int rx_recv_type;
-
-    struct ipmi_user_hndl ipmi_hndlrs;
-};
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+            char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+            const char *buf, size_t count);
 
 struct as9817_64_sys_data {
     struct platform_device *pdev;
@@ -85,6 +71,8 @@ struct as9817_64_sys_data {
     unsigned char ipmi_resp_cpld[2];
     unsigned char ipmi_resp_fan_controller[1];
     unsigned char ipmi_tx_data[3];
+    unsigned char ipmi_resp_rst[2];
+    unsigned char ipmi_tx_data_rst[IPMI_RESET_CMD_LENGTH];
 };
 
 struct as9817_64_sys_data *data = NULL;
@@ -102,7 +90,8 @@ enum as9817_64_sys_sysfs_attrs {
     FPGA_VER, /* FPGA version */
     OTP_PROTECT,
     FAN_CONTROLLER,
-    THERMAL_DATA
+    THERMAL_DATA,
+    RESET_MAC
 };
 
 static SENSOR_DEVICE_ATTR(fpga_version, S_IRUGO, show_version, NULL, FPGA_VER);
@@ -111,173 +100,21 @@ static SENSOR_DEVICE_ATTR(bmc_fan_controller, S_IRUGO|S_IWUSR,
                           get_bmc_fan_controller, set_bmc_fan_controller, 
                           FAN_CONTROLLER);
 static SENSOR_DEVICE_ATTR(bmc_thermal_data, S_IWUSR, NULL, set_bmc_thermal_data, THERMAL_DATA);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IWUSR | S_IRUGO, get_reset, \
+                          set_reset, RESET_MAC);
 
 static struct attribute *as9817_64_sys_attributes[] = {
     &sensor_dev_attr_fpga_version.dev_attr.attr,
     &sensor_dev_attr_otp_protect.dev_attr.attr,
     &sensor_dev_attr_bmc_fan_controller.dev_attr.attr,
     &sensor_dev_attr_bmc_thermal_data.dev_attr.attr,
+    &sensor_dev_attr_reset_mac.dev_attr.attr,
     NULL
 };
 
 static const struct attribute_group as9817_64_sys_group = {
     .attrs = as9817_64_sys_attributes,
 };
-
-/* Functions to talk to the IPMI layer */
-/* Initialize IPMI address, message buffers and user data */
-static int init_ipmi_data(struct ipmi_data *ipmi, int iface,
-                  struct device *dev)
-{
-    int err;
-
-    init_completion(&ipmi->read_complete);
-
-    /* Initialize IPMI address */
-    ipmi->address.addr_type = IPMI_SYSTEM_INTERFACE_ADDR_TYPE;
-    ipmi->address.channel = IPMI_BMC_CHANNEL;
-    ipmi->address.data[0] = 0;
-    ipmi->interface = iface;
-
-    /* Initialize message buffers */
-    ipmi->tx_msgid = 0;
-    ipmi->tx_message.netfn = ACCTON_IPMI_NETFN;
-
-    ipmi->ipmi_hndlrs.ipmi_recv_hndl = ipmi_msg_handler;
-
-    /* Create IPMI messaging interface user */
-    err = ipmi_create_user(ipmi->interface, &ipmi->ipmi_hndlrs,
-                        ipmi, &ipmi->user);
-    if (err < 0) {
-        dev_err(dev, "Unable to register user with IPMI "
-            "interface %d\n", ipmi->interface);
-        return -EACCES;
-    }
-
-    return 0;
-}
-
-/* Send an IPMI command */
-static int _ipmi_send_message(struct ipmi_data *ipmi, unsigned char cmd,
-                            unsigned char *tx_data, unsigned short tx_len,
-                            unsigned char *rx_data, unsigned short rx_len)
-{
-    int err;
-
-    ipmi->tx_message.cmd = cmd;
-    ipmi->tx_message.data = tx_data;
-    ipmi->tx_message.data_len = tx_len;
-    ipmi->rx_msg_data = rx_data;
-    ipmi->rx_msg_len = rx_len;
-
-    err = ipmi_validate_addr(&ipmi->address, sizeof(ipmi->address));
-    if (err)
-        goto addr_err;
-
-    ipmi->tx_msgid++;
-    err = ipmi_request_settime(ipmi->user, &ipmi->address, ipmi->tx_msgid,
-                &ipmi->tx_message, ipmi, 0, 0, 0);
-    if (err)
-        goto ipmi_req_err;
-
-    err = wait_for_completion_timeout(&ipmi->read_complete, IPMI_TIMEOUT);
-    if (!err)
-        goto ipmi_timeout_err;
-
-    return 0;
-
-ipmi_timeout_err:
-    err = -ETIMEDOUT;
-    dev_err(&data->pdev->dev, "request_timeout=%x\n", err);
-    return err;
-ipmi_req_err:
-    dev_err(&data->pdev->dev, "request_settime=%x\n", err);
-    return err;
-addr_err:
-    dev_err(&data->pdev->dev, "validate_addr=%x\n", err);
-    return err;
-}
-
-/* Send an IPMI command with retry */
-static int ipmi_send_message(struct ipmi_data *ipmi, unsigned char cmd,
-                            unsigned char *tx_data, unsigned short tx_len,
-                            unsigned char *rx_data, unsigned short rx_len)
-{
-    int status = 0, retry = 0;
-
-    char *cmdline = kstrdup_quotable_cmdline(current, GFP_KERNEL);
-
-    int i = 0;
-    char raw_cmd[20] = "";
-    sprintf(raw_cmd, "0x%02x", cmd);
-    if(tx_len) {
-        for(i = 0; i < tx_len; i++)
-            sprintf(raw_cmd + strlen(raw_cmd), " 0x%02x", tx_data[i]);
-    }
-
-    for (retry = 0; retry <= IPMI_ERR_RETRY_TIMES; retry++) {
-        status = _ipmi_send_message(ipmi,cmd, tx_data, tx_len, rx_data, 
-                 rx_len);
-        if (unlikely(status != 0)) {
-            dev_err(&data->pdev->dev,
-                    "ipmi_send_message_%d err status(%d)[%s] raw_cmd=[%s] tx_msgid=(%02x)\r\n",
-                    retry, status, cmdline ? cmdline : "", raw_cmd, 
-                    (int)ipmi->tx_msgid);
-            continue;
-        }
-
-        if (unlikely(ipmi->rx_result != 0)) {
-            dev_err(&data->pdev->dev,
-                    "ipmi_send_message_%d err rx_result(%d)[%s] raw_cmd=[%s] tx_msgid=(%02x)\r\n",
-                    retry, ipmi->rx_result, cmdline ? cmdline : "", raw_cmd, 
-                    (int)ipmi->tx_msgid);
-            continue;
-        }
-
-        break;
-    }
-
-    if (cmdline) 
-        kfree(cmdline);
-
-    return status;
-}
-
-/* Dispatch IPMI messages to callers */
-static void ipmi_msg_handler(struct ipmi_recv_msg *msg, void *user_msg_data)
-{
-    unsigned short rx_len;
-    struct ipmi_data *ipmi = user_msg_data;
-
-    if (msg->msgid != ipmi->tx_msgid) {
-        dev_err(&data->pdev->dev, "Mismatch between received msgid "
-            "(%02x) and transmitted msgid (%02x)!\n",
-            (int)msg->msgid,
-            (int)ipmi->tx_msgid);
-        ipmi_free_recv_msg(msg);
-        return;
-    }
-
-    ipmi->rx_recv_type = msg->recv_type;
-    if (msg->msg.data_len > 0)
-        ipmi->rx_result = msg->msg.data[0];
-    else
-        ipmi->rx_result = IPMI_UNKNOWN_ERR_COMPLETION_CODE;
-
-    if (msg->msg.data_len > 1) {
-        rx_len = msg->msg.data_len - 1;
-        if (ipmi->rx_msg_len < rx_len)
-            rx_len = ipmi->rx_msg_len;
-        ipmi->rx_msg_len = rx_len;
-        memcpy(ipmi->rx_msg_data, msg->msg.data + 1, ipmi->rx_msg_len);
-    }
-    else {
-        ipmi->rx_msg_len = 0;
-    }
-
-    ipmi_free_recv_msg(msg);
-    complete(&ipmi->read_complete);
-}
 
 static struct as9817_64_sys_data *as9817_64_sys_update_fpga_ver(void)
 {
@@ -488,6 +325,72 @@ static ssize_t set_bmc_thermal_data(struct device *dev, struct device_attribute 
 
     if (unlikely(data->ipmi.rx_result != 0)) {
         status = -EINVAL;
+        goto exit;
+    }
+
+    status = count;
+
+exit:
+    mutex_unlock(&data->update_lock);
+    return status;
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+                         char *buf)
+{
+    int status = 0;
+
+    mutex_lock(&data->update_lock);
+    status = ipmi_send_message(&data->ipmi, IPMI_RESET_CMD, NULL, 0,
+                       data->ipmi_resp_rst, sizeof(data->ipmi_resp_rst));
+    if (unlikely(status != 0))
+        goto exit;
+
+    if (unlikely(data->ipmi.rx_result != 0)) {
+        status = -EIO;
+        goto exit;
+    }
+
+    mutex_unlock(&data->update_lock);
+    return sprintf(buf, "0x%x 0x%x", data->ipmi_resp_rst[0], data->ipmi_resp_rst[1]);
+
+exit:
+    mutex_unlock(&data->update_lock);
+    return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+                         const char *buf, size_t count)
+{
+    u32 magic[2];
+    int status;
+
+    if (sscanf(buf, "0x%x 0x%x", &magic[0], &magic[1]) != 2)
+        return -EINVAL;
+
+    if (magic[0] > 0xFF || magic[1] > 0xFF)
+        return -EINVAL;
+
+    mutex_lock(&data->update_lock);
+
+    /* Send IPMI write command */
+    
+    data->ipmi_tx_data_rst[0] = 0;
+    data->ipmi_tx_data_rst[1] = 0;
+    data->ipmi_tx_data_rst[2] = 1;
+    data->ipmi_tx_data_rst[3] = 1;
+    data->ipmi_tx_data_rst[4] = magic[0];
+    data->ipmi_tx_data_rst[5] = magic[1];
+
+    status = ipmi_send_message(&data->ipmi, IPMI_RESET_CMD,
+                   data->ipmi_tx_data_rst,
+                   sizeof(data->ipmi_tx_data_rst), NULL, 0);
+
+    if (unlikely(status != 0))
+        goto exit;
+
+    if (unlikely(data->ipmi.rx_result != 0)) {
+        status = -EIO;
         goto exit;
     }
 

@@ -469,9 +469,9 @@ function _show_bmc_device_status {
         return
     fi
     # Get PSU 1
-    psu1_hw_revision=$(eval     "ipmitool raw 0x34 0x16 1 0x14 ${LOG_REDIRECT}")
-    psu1_mfr_id=$(eval           "ipmitool raw 0x34 0x16 1 0x12 ${LOG_REDIRECT}")
-    psu1_data=$(eval            " ipmitool raw 0x34 0x16 1 ${LOG_REDIRECT}")
+    psu1_hw_revision=$(eval     "ipmitool raw 0x34 0x16 ${bmc_psu1_id} 0x14 ${LOG_REDIRECT}")
+    psu1_mfr_id=$(eval           "ipmitool raw 0x34 0x16 ${bmc_psu1_id} 0x12 ${LOG_REDIRECT}")
+    psu1_data=$(eval            " ipmitool raw 0x34 0x16 ${bmc_psu1_id} ${LOG_REDIRECT}")
 
     _echo "[PSU 1 HW revision ]:"
     _echo " ${psu1_hw_revision}"
@@ -481,9 +481,9 @@ function _show_bmc_device_status {
     _echo " ${psu1_data}"
 
     # Get PSU 2
-    psu2_hw_revision=$(eval     "ipmitool raw 0x34 0x16 2 0x14 ${LOG_REDIRECT}")
-    psu2_mfr_id=$(eval           "ipmitool raw 0x34 0x16 2 0x12 ${LOG_REDIRECT}")
-    psu2_data=$(eval            " ipmitool raw 0x34 0x16 2 ${LOG_REDIRECT}")
+    psu2_hw_revision=$(eval     "ipmitool raw 0x34 0x16 ${bmc_psu2_id} 0x14 ${LOG_REDIRECT}")
+    psu2_mfr_id=$(eval           "ipmitool raw 0x34 0x16 ${bmc_psu2_id} 0x12 ${LOG_REDIRECT}")
+    psu2_data=$(eval            " ipmitool raw 0x34 0x16 ${bmc_psu2_id} ${LOG_REDIRECT}")
 
     _echo "[PSU 2 HW revision ]:"
     _echo " ${psu2_hw_revision}"

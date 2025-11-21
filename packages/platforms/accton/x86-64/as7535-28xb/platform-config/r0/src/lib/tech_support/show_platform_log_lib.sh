@@ -17,6 +17,8 @@ psu1_present_sysfs="${common_prefix}${psu_prefix}psu1_present"
 psu2_present_sysfs="${common_prefix}${psu_prefix}psu2_present"
 psu1_power_good_sysfs="${common_prefix}${psu_prefix}psu1_power_good"
 psu2_power_good_sysfs="${common_prefix}${psu_prefix}psu2_power_good"
+bmc_psu1_id=1
+bmc_psu2_id=2
 
 # QSFP/SFP
 support_sfp=1

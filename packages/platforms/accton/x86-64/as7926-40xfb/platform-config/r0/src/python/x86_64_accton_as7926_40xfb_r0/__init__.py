@@ -80,6 +80,7 @@ class OnlPlatform_x86_64_accton_as7926_40xfb_r0(OnlPlatformAccton,
             return False
 
         self.insmod('optoe')
+        self.insmod('accton_ipmi_intf')
         for m in [ 'cpld', 'fan', 'psu', 'leds', 'thermal', 'sys' ]:
             self.insmod("x86-64-accton-as7926-40xfb-%s.ko" % m)
 

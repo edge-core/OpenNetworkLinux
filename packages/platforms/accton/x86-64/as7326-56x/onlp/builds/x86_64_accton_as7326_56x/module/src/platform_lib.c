@@ -251,3 +251,53 @@ int psu_acbel_serial_number_get(int id, char *serial, int serial_len)
 
     return ONLP_STATUS_OK;
 }
+
+/**
+ * @brief warm reset for mac
+ * @param unit_id The warm reset device unit id, should be 0
+ * @param reset_dev The warm reset device id, should be 1 ~ (WARM_RESET_MAX-1)
+ * @param ret return value.
+ */
+int onlp_data_path_reset(uint8_t unit_id, uint8_t reset_dev)
+{
+    int ret = ONLP_STATUS_OK;
+    char *device_id[] = { NULL, "mac" };
+    char buf[4] = "1";
+
+    if (unit_id != 0 || reset_dev >= WARM_RESET_MAX) {
+        return ONLP_STATUS_E_PARAM;
+    }
+
+    if (reset_dev == 0) {
+        return ONLP_STATUS_E_UNSUPPORTED;
+    }
+
+    /* Reset device */
+    ret = onlp_file_write_str(buf, WARM_RESET_FORMAT, device_id[reset_dev]);
+    if (ret < 0) {
+            AIM_LOG_ERROR("Reset device-%d:(%s) failed.", reset_dev, device_id[reset_dev]);
+    }
+
+    return ret;
+}
+
+enum onlp_fan_dir onlp_get_fan_dir(void)
+{
+	int value = FAN_DIR_F2B;
+	int i = 0;
+	char  path[64] = {0};
+	enum onlp_fan_dir dir = FAN_DIR_F2B;
+
+	for(i = 0; i < CHASSIS_FAN_COUNT; i++) {
+		sprintf(path, "%s""fan%d_direction", FAN_BOARD_PATH, i+1);
+		if (onlp_file_read_int(&value, path) < 0)
+			continue;
+
+		if (value == FAN_DIR_F2B || value == FAN_DIR_B2F) {
+			dir = value;
+			break;
+		}
+	}
+
+	return dir;
+}

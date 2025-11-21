@@ -60,6 +60,11 @@ enum onlp_thermal_id
 	THERMAL_1_ON_PSU2,
 };
 
+enum reset_dev_type {
+	WARM_RESET_MAC = 1,
+	WARM_RESET_MAX
+};
+
 #define DEBUG_MODE 0
 
 #if (DEBUG_MODE == 1)
