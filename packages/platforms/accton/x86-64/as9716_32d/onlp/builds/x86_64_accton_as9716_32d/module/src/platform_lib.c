@@ -90,7 +90,7 @@ int onlp_file_read_string(char *filename, char *buffer, int buf_size, int data_l
     return ret;
 }
 
-#define I2C_PSU_MODEL_NAME_LEN 10
+#define I2C_PSU_MODEL_NAME_LEN 20
 #define I2C_PSU_FAN_DIR_LEN    3
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len)
@@ -99,7 +99,7 @@ psu_type_t get_psu_type(int id, char* modelname, int modelname_len)
     char  model_name[I2C_PSU_MODEL_NAME_LEN + 1] = {0};   
 
     /* Check model name */
-    node = (id == PSU1_ID) ? PSU1_AC_PMBUS_NODE(psu_mfr_model) : PSU2_AC_PMBUS_NODE(psu_mfr_model);
+    node = (id == PSU1_ID) ? PSU1_AC_HWMON_NODE(psu_model_name) : PSU2_AC_HWMON_NODE(psu_model_name);
     memset(model_name, 0x0, I2C_PSU_MODEL_NAME_LEN + 1);
     memset(modelname, 0x0, modelname_len);
     
@@ -113,20 +113,36 @@ psu_type_t get_psu_type(int id, char* modelname, int modelname_len)
         if (modelname)
             aim_strlcpy(modelname, model_name, strlen("FSH082")<(modelname_len-1)?(strlen("FSH082")+1):(modelname_len-1));
         
-        return PSU_TYPE_ACBEL;
+        return PSU_TYPE_ACBEL_FSH082_F2B;
     }
-    
-    if (!strncmp(model_name, "YESM1300AM", strlen("YESM1300AM")))
+
+    if (!strncmp(model_name, "FSH095", strlen("FSH095")))
     {
         if (modelname)
-            aim_strlcpy(modelname, model_name, strlen("YESM1300AM")<(modelname_len-1)?(strlen("YESM1300AM")+1):(modelname_len-1));
-
-        return PSU_TYPE_YESM1300;
+            aim_strlcpy(modelname, model_name, strlen("FSH095")<(modelname_len-1)?(strlen("FSH095")+1):(modelname_len-1));
+        return PSU_TYPE_ACBEL_FSH095_B2F;
     }
+
+    if (!strncmp(model_name, "YESM1300AM", strlen("YESM1300AM")))
+    {
+        if (strstr(model_name, "-2A"))
+        {
+            if (modelname)
+                aim_strlcpy(modelname, model_name, strlen("YESM1300AM-2A01P10")<(modelname_len-1)?(strlen("YESM1300AM-2A01P10")+1):(modelname_len-1));
+            return PSU_TYPE_3Y_YESM1300AM_2A_F2B;
+        }
+        else if (strstr(model_name, "-2R"))
+        {
+            if (modelname)
+                aim_strlcpy(modelname, model_name, strlen("YESM1300AM-2R01P10")<(modelname_len-1)?(strlen("YESM1300AM-2R01P10")+1):(modelname_len-1));
+            return PSU_TYPE_3Y_YESM1300AM_2R_B2F;
+        }
+    }
+
     if (!strncmp(model_name, "YM-2651Y", strlen("YM-2651Y")))
     {
         if (modelname)
-            aim_strlcpy(modelname, model_name, modelname_len-1);   
+            aim_strlcpy(modelname, model_name, modelname_len-1);
         return PSU_TYPE_YM2651Y;
     }
 
@@ -251,3 +267,33 @@ int psu_status_info_get(int id, char *node, int *value)
 
     return ret;
 }
+
+/**
+ * @brief warm reset for mac
+ * @param unit_id The warm reset device unit id, should be 0
+ * @param reset_dev The warm reset device id, should be 1 ~ (WARM_RESET_MAX-1)
+ * @param ret return value.
+ */
+int onlp_data_path_reset(uint8_t unit_id, uint8_t reset_dev)
+{
+    int ret = ONLP_STATUS_OK;
+    char *device_id[] = { NULL, "mac" };
+    char buf[4] = "1";
+
+    if (unit_id != 0 || reset_dev >= WARM_RESET_MAX) {
+        return ONLP_STATUS_E_PARAM;
+    }
+
+    if (reset_dev == 0) {
+        return ONLP_STATUS_E_UNSUPPORTED;
+    }
+
+    /* Reset device */
+    ret = onlp_file_write_str(buf, WARM_RESET_FORMAT, device_id[reset_dev]);
+    if (ret < 0) {
+            AIM_LOG_ERROR("Reset device-%d:(%s) failed.", reset_dev, device_id[reset_dev]);
+    }
+
+    return ret;
+}
+

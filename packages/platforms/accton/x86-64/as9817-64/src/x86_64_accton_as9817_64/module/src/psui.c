@@ -67,7 +67,7 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     *info = pinfo[pid]; /* Set the onlp_oid_hdr_t */
 
     /* Get the present state */
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "present");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "present");
     if (ret < 0) {
         info->status &= ~ONLP_PSU_STATUS_PRESENT;
         return ONLP_STATUS_E_INTERNAL;
@@ -78,7 +78,16 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
         return ONLP_STATUS_OK;
     }
     info->status |= ONLP_PSU_STATUS_PRESENT;
+    /* Get power good status */
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "power_good");
+    if (ret < 0) {
+        info->status |=  ONLP_PSU_STATUS_FAILED;
+        return ONLP_STATUS_E_INTERNAL;
+    }
 
+    if (val != PSU_STATUS_POWER_GOOD) {
+        info->status |=  ONLP_PSU_STATUS_UNPLUGGED;
+    }
     /* Set capability
      */
     info->caps = ONLP_PSU_CAPS_AC;
@@ -93,42 +102,42 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 
     /* Read voltage, current and power */
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "vin");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "vin");
     if (ret == ONLP_STATUS_OK && val) {
         info->mvin  = val;
         info->caps |= ONLP_PSU_CAPS_VIN;
     }
 
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "iin");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "iin");
     if (ret == ONLP_STATUS_OK && val) {
         info->miin  = val;
         info->caps |= ONLP_PSU_CAPS_IIN;
     }
 
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "pin");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "pin");
     if (ret == ONLP_STATUS_OK && val) {
         info->mpin  = val;
         info->caps |= ONLP_PSU_CAPS_PIN;
     }
 
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "vout");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "vout");
     if (ret == ONLP_STATUS_OK && val) {
         info->mvout = val;
         info->caps |= ONLP_PSU_CAPS_VOUT;
     }
 
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "iout");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "iout");
     if (ret == ONLP_STATUS_OK && val) {
         info->miout = val;
         info->caps |= ONLP_PSU_CAPS_IOUT;
     }
 
     val = 0;
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "pout");
+    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, pid, "pout");
     if (ret == ONLP_STATUS_OK && val) {
         info->mpout = val;
         info->caps |= ONLP_PSU_CAPS_POUT;
@@ -142,7 +151,7 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 
         /* Read model */
         snprintf(file, sizeof(file), "psu%d_model", pid);
-        len = onlp_file_read_str(&str, PSU_SYSFS_FORMAT_1, (pid-1), hwmon_idx, file);
+        len = onlp_file_read_str(&str, PSU_SYSFS_FORMAT_1, hwmon_idx, file);
         if (str && len) {
             memcpy(info->model, str, len);
             info->model[len] = '\0';
@@ -151,23 +160,12 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
 
         /* Read serial */
         snprintf(file, sizeof(file), "psu%d_serial", pid);
-        len = onlp_file_read_str(&str, PSU_SYSFS_FORMAT_1, (pid-1), hwmon_idx, file);
+        len = onlp_file_read_str(&str, PSU_SYSFS_FORMAT_1, hwmon_idx, file);
         if (str && len) {
             memcpy(info->serial, str, len);
             info->serial[len] = '\0';
         }
         AIM_FREE_IF_PTR(str);
-    }
-
-    /* Get power good status */
-    ret = onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (pid-1), pid, "power_good");
-    if (ret < 0) {
-        info->status |=  ONLP_PSU_STATUS_FAILED;
-        return ONLP_STATUS_E_INTERNAL;
-    }
-    if (val != PSU_STATUS_POWER_GOOD) {
-        info->status |=  ONLP_PSU_STATUS_UNPLUGGED;
-        info->caps = 0;
     }
 
     return ret;

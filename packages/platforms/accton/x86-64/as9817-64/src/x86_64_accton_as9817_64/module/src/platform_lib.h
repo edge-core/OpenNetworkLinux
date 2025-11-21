@@ -38,12 +38,11 @@
 
 #define PSU1_ID 1
 #define PSU2_ID 2
-
 #define PSU_STATUS_PRESENT 1
 #define PSU_STATUS_POWER_GOOD 1
 
-#define PSU_SYSFS_FORMAT   "/sys/devices/platform/as9817_64_psu.%d*psu%d_%s"
-#define PSU_SYSFS_FORMAT_1 "/sys/devices/platform/as9817_64_psu.%d/hwmon/hwmon%d/%s"
+#define PSU_SYSFS_FORMAT   "/sys/devices/platform/as9817_64_psu*psu%d_%s"
+#define PSU_SYSFS_FORMAT_1 "/sys/devices/platform/as9817_64_psu/hwmon/hwmon%d/%s"
 #define FAN_SYSFS_FORMAT   "/sys/devices/platform/as9817_64_fan*"
 #define FAN_SYSFS_FORMAT_1 "/sys/devices/platform/as9817_64_fan/hwmon/hwmon%d/%s"
 #define SYS_LED_PATH   "/sys/devices/platform/as9817_64_led/"
@@ -55,6 +54,7 @@
 #define FGPA_MAC_MAX_TEMP_PATH "/sys/devices/platform/as9817_64_fpga/mac_max_temp"
 #define BMC_VER1_PATH  "/sys/devices/platform/ipmi_bmc.0/firmware_revision"
 #define BMC_VER2_PATH  "/sys/devices/platform/ipmi_bmc.0/aux_firmware_revision"
+#define WARM_RESET_FORMAT "/sys/devices/platform/as9817_64_sys/reset_%s"
 
 enum onlp_thermal_id {
     THERMAL_RESERVED = 0,
@@ -96,6 +96,11 @@ typedef enum as9817_64_platform_id {
     AS9817_64D,
     PID_UNKNOWN
 } as9817_64_platform_id_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 enum onlp_fan_dir onlp_get_fan_dir(int fid);
 int onlp_get_psu_hwmon_idx(int pid);

@@ -68,6 +68,9 @@ int psu_pmbus_info_get(int id, char *node, int *value);
 int psu_status_info_get(int id, char *node, int *value);
 int psu_serial_number_get(int id, char *serial, int serial_len);
 
+int get_i2c_i801_bus(void);
+
+
 enum onlp_fan_dir {
 	FAN_DIR_F2B,
 	FAN_DIR_B2F,

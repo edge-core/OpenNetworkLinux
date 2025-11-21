@@ -125,9 +125,6 @@ function _sfp_get_tx_disable_func {
 
 function _sfp_get_eeprom_func {
     idx=$1
-    cpld_bus_idx=$(_sfp_select_cpld_i2c_bus_addr_idx "$idx")
-    port_status_cpld_i2c_bus_addr=${port_status_cpld_i2c_bus_addr_array[$cpld_bus_idx]}
-
     echo "/sys/bus/i2c/devices/${sfp_eeprom_bus_array[$idx]}-0050/eeprom"
 }
 

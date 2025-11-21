@@ -84,6 +84,7 @@ class OnlPlatform_x86_64_accton_as9926_24db_r0(OnlPlatformAccton,
             return False
 
         self.insmod('optoe')
+        self.insmod('accton_ipmi_intf')
 
         for m in [ 'fan', 'psu', 'leds', 'sfp', 'sys', 'thermal' ]:
             self.insmod("x86-64-accton-as9926-24db-%s.ko" % m)

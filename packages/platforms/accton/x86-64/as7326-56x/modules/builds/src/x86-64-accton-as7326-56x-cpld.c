@@ -36,6 +36,7 @@
 
 #define I2C_RW_RETRY_COUNT				10
 #define I2C_RW_RETRY_INTERVAL			60 /* ms */
+#define MAC_PCIE_RESET_DELAY            100 /* ms */
 
 static LIST_HEAD(cpld_client_list);
 static struct mutex     list_lock;
@@ -77,6 +78,7 @@ enum as7326_56x_cpld_sysfs_attributes {
 	CPLD_VERSION,
 	BIOS_FLASH_ID,
 	ACCESS,
+	RESET_MAC,
 	MODULE_PRESENT_ALL,
 	MODULE_RXLOS_ALL,
 	/* transceiver attributes */
@@ -306,6 +308,10 @@ static ssize_t show_version(struct device *dev, struct device_attribute *da,
              char *buf);
 static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *da,
 		char *buf);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+			const char *buf, size_t count);
 static int as7326_56x_cpld_read_internal(struct i2c_client *client, u8 reg);
 static int as7326_56x_cpld_write_internal(struct i2c_client *client, u8 reg, u8 value);
 
@@ -329,6 +335,7 @@ static int as7326_56x_cpld_write_internal(struct i2c_client *client, u8 reg, u8 
 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
 static SENSOR_DEVICE_ATTR(bios_flash_id, S_IRUGO, show_bios_flash_id, NULL, BIOS_FLASH_ID);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IRUGO | S_IWUSR, get_reset, set_reset, RESET_MAC);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
 /* transceiver attributes */
 static SENSOR_DEVICE_ATTR(module_present_all, S_IRUGO, show_present_all, NULL, MODULE_PRESENT_ALL);
@@ -538,8 +545,9 @@ static const struct attribute_group as7326_56x_cpld2_group = {
 };
 
 static struct attribute *as7326_56x_cpld1_attributes[] = {
-    &sensor_dev_attr_version.dev_attr.attr,
-    &sensor_dev_attr_access.dev_attr.attr,
+	&sensor_dev_attr_version.dev_attr.attr,
+	&sensor_dev_attr_reset_mac.dev_attr.attr,
+	&sensor_dev_attr_access.dev_attr.attr,
 	/* transceiver attributes */
 	&sensor_dev_attr_module_present_all.dev_attr.attr,
 	&sensor_dev_attr_module_rx_los_all.dev_attr.attr,
@@ -969,6 +977,113 @@ static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *a
 	val = i2c_smbus_read_byte_data(client, 0x2);  /*(BIT2) 1: master, 0: slave*/
 
 	return sprintf(buf, "%d\n", ( ((val >> 2) & 0x1) == 1 ) ? 1 : 2); /*1: master, 2: slave*/
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as7326_56x_cpld_data *data = i2c_get_clientdata(client);
+	
+	int status = 0, val = 0;
+	u8 reg = 0, mask_mac = 0x20, mask_pcie = 0x8, mask = 0;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x7;
+		mask = mask_mac | mask_pcie;
+		break;
+	default:
+		return 0;
+	}
+
+	mutex_lock(&data->update_lock);
+	status = as7326_56x_cpld_read_internal(client, reg);
+
+	if (unlikely(status < 0)) {
+		goto exit;
+	}
+	mutex_unlock(&data->update_lock);
+
+	val = ((status & mask) == 0x0) ? 1 : 0;
+	return sprintf(buf, "%d\n", val);
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+		       const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as7326_56x_cpld_data *data = i2c_get_clientdata(client);
+	long value;
+	int status;
+	u8 reg = 0, mask_mac, mask_pcie = 0;
+
+	status = kstrtol(buf, 10, &value);
+
+	if (status)
+		return status;
+
+	if (value != 1)
+		return -EINVAL;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x7;
+		mask_mac = 0x20;
+		mask_pcie = 0x8;
+
+		mutex_lock(&data->update_lock);
+
+		/* put mac & pcie to low */
+		status = as7326_56x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status &= ~(mask_mac | mask_pcie);
+		status = as7326_56x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		/* put mac to high */
+		status = as7326_56x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_mac;
+		status = as7326_56x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		msleep(MAC_PCIE_RESET_DELAY);
+
+		/* put pcie to high */
+		status = as7326_56x_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_pcie;
+		status = as7326_56x_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		mutex_unlock(&data->update_lock);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return count;
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
 }
 
 /*

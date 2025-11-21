@@ -186,8 +186,10 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     psu_type = get_psu_type(index, info->model, sizeof(info->model));
     
     switch (psu_type) {
-        case PSU_TYPE_ACBEL:            
-        case PSU_TYPE_YESM1300:         
+        case PSU_TYPE_ACBEL_FSH082_F2B:
+        case PSU_TYPE_ACBEL_FSH095_B2F:
+        case PSU_TYPE_3Y_YESM1300AM_2A_F2B:
+        case PSU_TYPE_3Y_YESM1300AM_2R_B2F:
             ret = psu_data_info_get(info);
             break;
         case PSU_TYPE_YM2651Y:

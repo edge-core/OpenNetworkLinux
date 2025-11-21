@@ -9,6 +9,7 @@ class OnlPlatform_x86_64_accton_as7535_28xb_r0(OnlPlatformAccton,
 
     def baseconfig(self):
         self.insmod('optoe')
+        self.insmod("accton_ipmi_intf")
         for m in [ 'sys', 'cpld', 'fan', 'psu', 'thermal', 'leds', 'fpga']:
             self.insmod("x86-64-accton-as7535-28xb-%s" % m)
 

@@ -51,6 +51,8 @@
 #define IDPROM_PATH_1 "/sys/class/i2c-adapter/i2c-0/0-0057/eeprom"
 #define IDPROM_PATH_2 "/sys/class/i2c-adapter/i2c-1/1-0057/eeprom"
 
+#define WARM_RESET_FORMAT "/sys/bus/i2c/devices/4-0060/reset_mac"
+
 int deviceNodeWriteInt(char *filename, int value, int data_len);
 int deviceNodeReadBinary(char *filename, char *buffer, int buf_size, int data_len);
 int deviceNodeReadString(char *filename, char *buffer, int buf_size, int data_len);
@@ -68,6 +70,11 @@ typedef enum psu_type {
     NUM_OF_PSU_TYPE,
     PSU_TYPE_UNKNOWN,
 } psu_type_t;
+
+enum reset_dev_type {
+    WARM_RESET_MAC = 1,
+    WARM_RESET_MAX
+};
 
 psu_type_t get_psu_type(int id, char* modelname, int modelname_len);
 int psu_pmbus_serial_number_get(int id, char *serial, int serial_len);

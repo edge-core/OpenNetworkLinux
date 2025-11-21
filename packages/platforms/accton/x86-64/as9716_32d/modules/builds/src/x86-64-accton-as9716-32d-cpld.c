@@ -37,6 +37,8 @@
 #define I2C_RW_RETRY_COUNT				10
 #define I2C_RW_RETRY_INTERVAL			60 /* ms */
 
+#define MAC_PCIE_RESET_DELAY 100 /* ms */
+
 static LIST_HEAD(cpld_client_list);
 static struct mutex     list_lock;
 
@@ -75,7 +77,8 @@ MODULE_DEVICE_TABLE(i2c, as9716_32d_cpld_id);
 
 enum as9716_32d_cpld_sysfs_attributes {
 	CPLD_VERSION,
-    BIOS_FLASH_ID,
+	BIOS_FLASH_ID,
+    RESET_MAC,
 	ACCESS,
 	/* transceiver attributes */
 	TRANSCEIVER_PRESENT_ATTR_ID(1),
@@ -168,6 +171,10 @@ static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *d
              char *buf);
 static int as9716_32d_cpld_read_internal(struct i2c_client *client, u8 reg);
 static int as9716_32d_cpld_write_internal(struct i2c_client *client, u8 reg, u8 value);
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf);
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+			const char *buf, size_t count);
 
 /* transceiver attributes */
 #define DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(index) \
@@ -193,6 +200,8 @@ static int as9716_32d_cpld_write_internal(struct i2c_client *client, u8 reg, u8 
 static SENSOR_DEVICE_ATTR(version, S_IRUGO, show_version, NULL, CPLD_VERSION);
 static SENSOR_DEVICE_ATTR(bios_flash_id, S_IRUGO, show_bios_flash_id, NULL, BIOS_FLASH_ID);
 static SENSOR_DEVICE_ATTR(access, S_IWUSR, NULL, access, ACCESS);
+static SENSOR_DEVICE_ATTR(reset_mac, S_IRUGO | S_IWUSR, \
+			  get_reset, set_reset, RESET_MAC);
 /* transceiver attributes */
 DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(1);
 DECLARE_TRANSCEIVER_PRESENT_SENSOR_DEVICE_ATTR(2);
@@ -233,6 +242,7 @@ DECLARE_SFP_TRANSCEIVER_SENSOR_DEVICE_ATTR(34);
 static struct attribute *as9716_32d_fpga_attributes[] = {
     &sensor_dev_attr_version.dev_attr.attr,
     &sensor_dev_attr_access.dev_attr.attr,
+    &sensor_dev_attr_reset_mac.dev_attr.attr,
 	NULL
 };
 
@@ -613,6 +623,113 @@ static ssize_t show_bios_flash_id(struct device *dev, struct device_attribute *a
     val = i2c_smbus_read_byte_data(client, 0x2);  /*0x10: master, 0x00: slave*/
 
     return sprintf(buf, "%d\n", ( ((val >> 4) & 0x1) == 1 ) ? 1 : 2); /*1: master, 2: slave*/
+}
+
+static ssize_t get_reset(struct device *dev, struct device_attribute *da,
+			char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as9716_32d_cpld_data *data = i2c_get_clientdata(client);
+	
+	int status = 0, val = 0;
+	u8 reg = 0, mask_mac = 0x80, mask_pcie = 0x10, mask = 0;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x8;
+		mask = mask_mac | mask_pcie;
+		break;
+	default:
+		return 0;
+	}
+
+	mutex_lock(&data->update_lock);
+	status = as9716_32d_cpld_read_internal(client, reg);
+
+	if (unlikely(status < 0)) {
+		goto exit;
+	}
+	mutex_unlock(&data->update_lock);
+
+	val = ((status & mask) == 0x0) ? 1 : 0;
+	return sprintf(buf, "%d\n", val);
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
+}
+
+static ssize_t set_reset(struct device *dev, struct device_attribute *da,
+		       const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
+	struct i2c_client *client = to_i2c_client(dev);
+	struct as9716_32d_cpld_data *data = i2c_get_clientdata(client);
+	long value;
+	int status;
+	u8 reg = 0, mask_mac, mask_pcie = 0;
+
+	status = kstrtol(buf, 10, &value);
+
+	if (status)
+		return status;
+
+	if (value != 1)
+		return -EINVAL;
+
+	switch (attr->index) {
+	case RESET_MAC:
+		reg  = 0x8;
+		mask_mac = 0x80;
+		mask_pcie = 0x10;
+
+		mutex_lock(&data->update_lock);
+
+		/* put mac & pcie to low */
+		status = as9716_32d_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status &= ~(mask_mac | mask_pcie);
+		status = as9716_32d_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		/* put mac to high */
+		status = as9716_32d_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_mac;
+		status = as9716_32d_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		msleep(MAC_PCIE_RESET_DELAY);
+
+		/* put pcie to high */
+		status = as9716_32d_cpld_read_internal(client, reg);
+		if (unlikely(status < 0))
+			goto exit;
+
+		status |= mask_pcie;
+		status = as9716_32d_cpld_write_internal(client, reg, status);
+		if (unlikely(status < 0))
+			goto exit;
+
+		mutex_unlock(&data->update_lock);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return count;
+
+exit:
+	mutex_unlock(&data->update_lock);
+	return status;
 }
 
 /*

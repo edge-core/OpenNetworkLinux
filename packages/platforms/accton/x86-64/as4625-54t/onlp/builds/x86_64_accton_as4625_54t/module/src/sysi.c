@@ -34,7 +34,8 @@
 #include "x86_64_accton_as4625_54t_log.h"
 
 #define BIOS_VER_PATH "/sys/devices/virtual/dmi/id/bios_version"
-#define PREFIX_PATH_ON_CPLD_DEV "/sys/bus/i2c/devices/1-0064/"
+#define PREFIX_PATH_ON_BUS0_CPLD "/sys/bus/i2c/devices/0-0064/"
+#define PREFIX_PATH_ON_BUS1_CPLD "/sys/bus/i2c/devices/1-0064/"
 
 #define NUM_OF_CPLD 1
 #define FAN_DUTY_CYCLE_MAX (100)
@@ -109,18 +110,24 @@ onlp_sysi_oids_get(onlp_oid_t* table, int max)
 int
 onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
 {
-	int ver_major = 0, ver_minor = 0;
+    int ver_major = 0, ver_minor = 0, bus = 0;
     onlp_onie_info_t onie;
     char *bios_ver = NULL;
+    char prefix_path[64];
 
     onlp_file_read_str(&bios_ver, BIOS_VER_PATH);
     onlp_onie_decode_file(&onie, IDPROM_PATH);
+    bus = get_i2c_i801_bus();
+    if (bus == 0)
+        strcpy(prefix_path, PREFIX_PATH_ON_BUS0_CPLD);
+    else
+        strcpy(prefix_path, PREFIX_PATH_ON_BUS1_CPLD);
 
-	if(onlp_file_read_int(&ver_major, "%s/version_major", PREFIX_PATH_ON_CPLD_DEV) < 0)
-		return ONLP_STATUS_E_INTERNAL;
+    if(onlp_file_read_int(&ver_major, "%s/version_major", prefix_path) < 0)
+        AIM_LOG_ERROR("Unable to read cpld major version of %s \r\n");
 
-	if(onlp_file_read_int(&ver_minor, "%s/version_minor", PREFIX_PATH_ON_CPLD_DEV) < 0)
-		return ONLP_STATUS_E_INTERNAL;
+    if(onlp_file_read_int(&ver_minor, "%s/version_minor", prefix_path) < 0)
+        AIM_LOG_ERROR("Unable to read cpld minor version of %s \r\n");
 
     pi->cpld_versions = aim_fstrdup("\r\n\t   Main CPLD(0x64): %02X.%02X\r\n",
                                     ver_major, ver_minor);
@@ -130,7 +137,7 @@ onlp_sysi_platform_info_get(onlp_platform_info_t* pi)
 
     AIM_FREE_IF_PTR(bios_ver);
 
-	return 0;
+    return 0;
 }
 
 void
@@ -143,15 +150,23 @@ onlp_sysi_platform_info_free(onlp_platform_info_t* pi)
 int get_pcb_id()
 {
 	int pcb_id = PCB_ID_AS4625_54T_B2F;
+	int bus = 0;
+	char prefix_path[64];
 
-	if(onlp_file_read_int(&pcb_id, "%s/pcb_id", PREFIX_PATH_ON_CPLD_DEV) < 0){
+
+	bus = get_i2c_i801_bus();
+	if (bus == 0)
+		strcpy(prefix_path, PREFIX_PATH_ON_BUS0_CPLD);
+	else
+		strcpy(prefix_path, PREFIX_PATH_ON_BUS1_CPLD);
+
+	if(onlp_file_read_int(&pcb_id, "%s/pcb_id", prefix_path) < 0){
 		AIM_LOG_WARN("Unable to get pcb id\n\r");
 		return ONLP_STATUS_E_INTERNAL;
 	}
 
 	if(pcb_id < PCB_ID_AS4625_54T_F2B || pcb_id > PCB_ID_AS4625_54T_B2F)
 		pcb_id = PCB_ID_AS4625_54T_F2B;
-
 	return pcb_id;
 }
 
@@ -311,27 +326,36 @@ int onlp_sysi_platform_manage_fans(void)
 	}
 
 	if(shutdown){
-
+		int bus = 0;
+		char prefix_path[64];
+		char thermal_shutdown_path[64];
+		char pwr_enable_mb_path[64];
+		bus = get_i2c_i801_bus();
+		if (bus == 0)
+			strcpy(prefix_path, PREFIX_PATH_ON_BUS0_CPLD);
+		else
+			strcpy(prefix_path, PREFIX_PATH_ON_BUS1_CPLD);
+		sprintf(thermal_shutdown_path, "%s""thermal_shutdown", prefix_path);
+		sprintf(pwr_enable_mb_path, "%s""pwr_enable_mb", prefix_path);
 		/*
           Because the R0A hardware does not have the system thermal
           shutdown (0x27) function, the power control (0x03) function
           is used for thermal shutdown. So for the R0A hardware, this
           thermal_shutdown sysfs is not functional.
         */
-
 		AIM_LOG_WARN("Alarm-Critical for temperature critical is detected, trigger thermal shutdown\n\r");
 		// Sync log buffer to disk for hardware revision R01 and above
 		system("sync;sync;sync");
 		system("/sbin/fstrim -av");
 		sleep(5);
-		onlp_file_write_int(1, PREFIX_PATH_ON_CPLD_DEV"thermal_shutdown");
+		onlp_file_write_int(1, thermal_shutdown_path);
 
 		AIM_LOG_WARN("Alarm-Critical for temperature critical is detected, shutdown DUT\n\r");
 		// Sync log buffer to disk for hardware revision R0A
 		system("sync;sync;sync");
 		system("/sbin/fstrim -av");
 		sleep(5);
-		onlp_file_write_int(0, PREFIX_PATH_ON_CPLD_DEV"pwr_enable_mb");
+		onlp_file_write_int(0, pwr_enable_mb_path);
 	}
 	return 0;
 }

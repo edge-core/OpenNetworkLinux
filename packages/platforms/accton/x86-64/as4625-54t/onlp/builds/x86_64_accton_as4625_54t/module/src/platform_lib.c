@@ -117,3 +117,39 @@ int psu_serial_number_get(int id, char *serial, int serial_len)
     serial[PSU_SERIAL_NUMBER_LEN -1] = '\0';
     return ONLP_STATUS_OK;
 }
+
+int get_i2c_i801_bus(void)
+{
+    int len = 0, bus = 0;
+    char *i2c_bus_0_name = NULL;
+    char *i2c_bus_1_name = NULL;
+
+    len = onlp_file_read_str(&i2c_bus_0_name, "/sys/bus/i2c/devices/i2c-0/name");
+    if(i2c_bus_0_name == NULL || len <= 0){
+        AIM_LOG_ERROR("Unable to read the name sysfs of i2c-0\r\n");
+        goto exit0;
+
+    }
+
+    len = onlp_file_read_str(&i2c_bus_1_name, "/sys/bus/i2c/devices/i2c-1/name");
+    if(i2c_bus_1_name == NULL || len <= 0){
+        AIM_LOG_ERROR("Unable to read the name sysfs of i2c-1\r\n");
+        goto exit1;
+    }
+
+    if(!strncmp(i2c_bus_0_name, "SMBus I801", strlen("SMBus I801"))){
+        bus = 0;
+    }
+    else if(!strncmp(i2c_bus_1_name, "SMBus I801", strlen("SMBus I801"))){
+        bus = 1;
+    }
+    else
+        AIM_LOG_ERROR("Unable to find SMBus I801\r\n");
+
+    AIM_FREE_IF_PTR(i2c_bus_1_name);
+exit1:
+    AIM_FREE_IF_PTR(i2c_bus_0_name);
+exit0:
+    return bus;
+}
+

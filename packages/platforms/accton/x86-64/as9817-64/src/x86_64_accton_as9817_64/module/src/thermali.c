@@ -51,12 +51,12 @@ static char* devfiles__[] = { /* must map with onlp_thermal_id */
     "/sys/devices/platform/as9817_64_thermal*temp6_input",
     "/sys/devices/platform/as9817_64_thermal*temp7_input",
     "/sys/devices/platform/as9817_64_thermal*temp8_input",
-    "/sys/devices/platform/as9817_64_psu.0*psu1_temp1_input",
-    "/sys/devices/platform/as9817_64_psu.0*psu1_temp2_input",
-    "/sys/devices/platform/as9817_64_psu.0*psu1_temp3_input",
-    "/sys/devices/platform/as9817_64_psu.1*psu2_temp1_input",
-    "/sys/devices/platform/as9817_64_psu.1*psu2_temp2_input",
-    "/sys/devices/platform/as9817_64_psu.1*psu2_temp3_input"
+    "/sys/devices/platform/as9817_64_psu*psu1_temp1_input",
+    "/sys/devices/platform/as9817_64_psu*psu1_temp2_input",
+    "/sys/devices/platform/as9817_64_psu*psu1_temp3_input",
+    "/sys/devices/platform/as9817_64_psu*psu2_temp1_input",
+    "/sys/devices/platform/as9817_64_psu*psu2_temp2_input",
+    "/sys/devices/platform/as9817_64_psu*psu2_temp3_input"
 };
 
 typedef struct {
@@ -278,7 +278,7 @@ onlp_thermali_info_get(onlp_oid_t id, onlp_thermal_info_t* info)
     if (tid >= psu_tid_start) {
         psu_id = ( tid < (psu_tid_start + NUM_OF_THERMAL_PER_PSU) ) ? PSU1_ID : PSU2_ID;
         /* Get power good status */
-        onlp_file_read_int(&val, PSU_SYSFS_FORMAT, (psu_id-1), psu_id, "power_good");
+        onlp_file_read_int(&val, PSU_SYSFS_FORMAT, psu_id, "power_good");
         if(val != PSU_STATUS_POWER_GOOD) {
             info->status |= ONLP_THERMAL_STATUS_FAILED;
         }

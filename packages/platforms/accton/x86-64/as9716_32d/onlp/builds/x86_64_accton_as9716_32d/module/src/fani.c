@@ -129,7 +129,7 @@ _onlp_fani_info_get_fan(int fid, onlp_fan_info_t* info)
         return ONLP_STATUS_E_INTERNAL;
     }
 
-	info->status |= value ? ONLP_FAN_STATUS_F2B : ONLP_FAN_STATUS_B2F;
+	info->status |= value ? ONLP_FAN_STATUS_B2F : ONLP_FAN_STATUS_F2B;
 
 
     /* get front fan speed
@@ -175,21 +175,20 @@ _onlp_get_fan_direction_on_psu(int pid)
     switch (psu_type) {
         case PSU_TYPE_UNKNOWN:
             return 0;
-        case PSU_TYPE_ACBEL:
-        case PSU_TYPE_YESM1300:
-        case PSU_TYPE_YM2651Y:
-            return ONLP_FAN_STATUS_B2F;
-        default:
+        case PSU_TYPE_ACBEL_FSH082_F2B:
+        case PSU_TYPE_3Y_YESM1300AM_2A_F2B:
             return ONLP_FAN_STATUS_F2B;
+        default:
+            return ONLP_FAN_STATUS_B2F;
     }
 }
 
 static int
 _onlp_fani_info_get_fan_on_psu(int pid, onlp_fan_info_t* info)
 {
-	int val = 0;
+    int val = 0;
 
-	info->status |= ONLP_FAN_STATUS_PRESENT;
+    info->status |= ONLP_FAN_STATUS_PRESENT;
 
     /* Get power good status */
     if (psu_status_info_get(pid, "psu_power_good", &val) != ONLP_STATUS_OK) {

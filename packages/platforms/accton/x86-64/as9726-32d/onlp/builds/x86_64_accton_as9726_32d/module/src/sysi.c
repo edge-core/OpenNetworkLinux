@@ -996,15 +996,6 @@ int onlp_sysi_platform_manage_fans(void)
     thermal_state_result_t result = {0};
     int i, total_processed = 0;
 
-    /* Check fan status */
-    if (onlp_sysi_get_fan_status() != ONLP_STATUS_OK) {
-        current_state = LEVEL_FAN_MAX;
-        onlp_sysi_set_fan_duty_all(FAN_DUTY_CYCLE_MAX);
-        AIM_SYSLOG_WARN("Temperature warning", "Temperature warning", 
-                        "Fan failure detected, setting maximum speed");
-        return ONLP_STATUS_OK;
-    }
-
     /* Initialize */
     if (!initialized) {
         onlp_sysi_set_fan_duty_all(FAN_DUTY_CYCLE_MAX);
@@ -1059,26 +1050,34 @@ int onlp_sysi_platform_manage_fans(void)
 
     persistent_alarm = result.alarm;
 
-    /* Apply fan policy changes */
-    if (current_state != result.new_state) {
-        fan_policy_config_t *fan_policy;
+    /* Check fan status */
+    if (onlp_sysi_get_fan_status() != ONLP_STATUS_OK) {
+        AIM_SYSLOG_WARN("Temperature warning", "Temperature warning", 
+                        "Fan failure detected, setting maximum speed");
+        onlp_sysi_set_fan_duty_all(FAN_DUTY_CYCLE_MAX);
+        current_state = LEVEL_FAN_MAX;
+    } else {
+        /* Apply fan policy changes */
+        if (current_state != result.new_state) {
+            fan_policy_config_t *fan_policy;
 
-        fan_policy = (fan_dir == FAN_DIR_AFI) ? fan_policy_b2f : fan_policy_f2b;
+            fan_policy = (fan_dir == FAN_DIR_AFI) ? fan_policy_b2f : fan_policy_f2b;
 
-        if (result.new_state > result.ori_state) {
-            AIM_SYSLOG_WARN("Temperature warning", "Temperature warning", 
-                            "Increasing fan duty cycle from %d%% to %d%%", 
-                            fan_policy[result.ori_state].duty_cycle, 
-                            fan_policy[result.new_state].duty_cycle);
-        } else {
-            AIM_SYSLOG_INFO("Temperature info", "Temperature info", 
-                            "Decreasing fan duty cycle from %d%% to %d%%", 
-                            fan_policy[result.ori_state].duty_cycle, 
-                            fan_policy[result.new_state].duty_cycle);
+            if (result.new_state > result.ori_state) {
+                AIM_SYSLOG_WARN("Temperature warning", "Temperature warning", 
+                                "Increasing fan duty cycle from %d%% to %d%%", 
+                                fan_policy[result.ori_state].duty_cycle, 
+                                fan_policy[result.new_state].duty_cycle);
+            } else {
+                AIM_SYSLOG_INFO("Temperature info", "Temperature info", 
+                                "Decreasing fan duty cycle from %d%% to %d%%", 
+                                fan_policy[result.ori_state].duty_cycle, 
+                                fan_policy[result.new_state].duty_cycle);
+            }
+            onlp_sysi_set_fan_duty_all(fan_policy[result.new_state].duty_cycle);
+
+            current_state = result.new_state;
         }
-        onlp_sysi_set_fan_duty_all(fan_policy[result.new_state].duty_cycle);
-
-        current_state = result.new_state;
     }
 
     return ONLP_STATUS_OK;

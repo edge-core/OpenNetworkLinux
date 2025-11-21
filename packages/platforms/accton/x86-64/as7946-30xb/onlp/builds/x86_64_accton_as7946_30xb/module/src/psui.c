@@ -100,9 +100,6 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
     }
     info->status |= ONLP_PSU_STATUS_PRESENT;
 
-    /* Set capability */
-    info->caps |= get_DCorAC_cap(info->model);
-
     /* Set the associated oid_table */
     info->hdr.coids[0] = ONLP_FAN_ID_CREATE(pid + CHASSIS_FAN_COUNT);
     info->hdr.coids[1] = ONLP_THERMAL_ID_CREATE(((pid-1) * CHASSIS_PSU_THERMAL_COUNT) + THERMAL_1_ON_PSU1);
@@ -152,6 +149,9 @@ onlp_psui_info_get(onlp_oid_t id, onlp_psu_info_t* info)
         info->model[len] = '\0';
     }
     AIM_FREE_IF_PTR(string);
+
+    /* Set capability */
+    info->caps |= get_DCorAC_cap(info->model);
 
     /* Read serial */
     len = onlp_file_read_str(&string, "%s""psu%d_serial", PSU_SYSFS_PATH, pid);

@@ -664,10 +664,12 @@ static ssize_t show_status(struct device *dev, struct device_attribute *da,
 	case MODULE_LPMODE_1 ... MODULE_LPMODE_8:
 		reg  = 0xC;
 		mask = 0x1 << (attr->index - MODULE_LPMODE_1);
+		invert = 0;
 		break;
 	case MODULE_LPMODE_9 ... MODULE_LPMODE_10:
 		reg  = 0xD;
 		mask = 0x1 << (attr->index - MODULE_LPMODE_9);
+		invert = 0;
 		break;
 	case MODULE_TXDISABLE_11 ... MODULE_TXDISABLE_18:
 		reg  = 0xA;
@@ -949,11 +951,11 @@ static ssize_t set_control(struct device *dev, struct device_attribute *da,
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(da);
 	struct i2c_client *client = to_i2c_client(dev);
 	struct as7946_74xkb_cpld_data *data = i2c_get_clientdata(client);
-	long reset;
+	long value;
 	int status, bus, addr;
-	u8 reg = 0, mask = 0;
+	u8 reg = 0, mask = 0, invert = 1;
 
-	status = kstrtol(buf, 10, &reset);
+	status = kstrtol(buf, 10, &value);
 	if (status)
 		return status;
 
@@ -961,18 +963,22 @@ static ssize_t set_control(struct device *dev, struct device_attribute *da,
 	case MODULE_RESET_1 ... MODULE_RESET_8:/*QSFP*/
 		reg  = 0x8;
 		mask = 0x1 << (attr->index - MODULE_RESET_1);
+		invert = 1;
 		break;
 	case MODULE_RESET_9 ... MODULE_RESET_10:/*QSFP*/
 		reg  = 0x9;
 		mask = 0x1 << (attr->index - MODULE_RESET_9);
+		invert = 1;
 		break;
 	case MODULE_LPMODE_1 ... MODULE_LPMODE_8:/*QSFP*/
 		reg  = 0xC;
 		mask = 0x1 << (attr->index - MODULE_LPMODE_1);
+		invert = 0;
 		break;
 	case MODULE_LPMODE_9 ... MODULE_LPMODE_10:/*QSFP*/
 		reg  = 0xD;
 		mask = 0x1 << (attr->index - MODULE_LPMODE_9);
+		invert = 0;
 		break;
 	default:
 		return -ENXIO;
@@ -1007,11 +1013,18 @@ static ssize_t set_control(struct device *dev, struct device_attribute *da,
 	if (unlikely(status < 0))
 		goto exit;
 
-	/* Update reset status */
-	if (reset)
-		status &= ~mask;
+	/* Update reset and lpmode status */
+	if (invert)
+		if (value)
+			status &= ~mask;
+		else
+			status |= mask;
 	else
-		status |= mask;
+		if (value)
+			status |= mask;
+		else
+			status &= ~mask;
+
 
 	status = as7946_74xkb_cpld_write(bus, addr, reg, status);
 	if (unlikely(status < 0))
