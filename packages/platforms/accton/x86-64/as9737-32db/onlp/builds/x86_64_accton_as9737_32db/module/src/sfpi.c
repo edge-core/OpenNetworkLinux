@@ -42,21 +42,21 @@
 	} while(0)
 
 #define MODULE_EEPROM_FORMAT       "/sys/bus/i2c/devices/%d-0050/eeprom"
-#define MODULE_PRESENT_CPLD2_FORMAT "/sys/bus/i2c/devices/35-0061/module_present_%d"
-#define MODULE_PRESENT_CPLD3_FORMAT "/sys/bus/i2c/devices/36-0062/module_present_%d"
-#define MODULE_RXLOS_FORMAT         "/sys/bus/i2c/devices/36-0062/module_rx_los_%d"
-#define MODULE_TXFAULT_FORMAT       "/sys/bus/i2c/devices/36-0062/module_tx_fault_%d"
-#define MODULE_TXDISABLE_FORMAT     "/sys/bus/i2c/devices/36-0062/module_tx_disable_%d"
-#define MODULE_RESET_CPLD2_FORMAT   "/sys/bus/i2c/devices/35-0061/module_reset_%d"
-#define MODULE_RESET_CPLD3_FORMAT   "/sys/bus/i2c/devices/36-0062/module_reset_%d"
-#define MODULE_LPMODE_CPLD2_FORMAT  "/sys/bus/i2c/devices/35-0061/module_lpmode_%d"
-#define MODULE_LPMODE_CPLD3_FORMAT  "/sys/bus/i2c/devices/36-0062/module_lpmode_%d"
+#define MODULE_PRESENT_CPLD2_FORMAT "/sys/bus/i2c/devices/36-0061/module_present_%d"
+#define MODULE_PRESENT_CPLD3_FORMAT "/sys/bus/i2c/devices/37-0062/module_present_%d"
+#define MODULE_RXLOS_FORMAT         "/sys/bus/i2c/devices/37-0062/module_rx_los_%d"
+#define MODULE_TXFAULT_FORMAT       "/sys/bus/i2c/devices/37-0062/module_tx_fault_%d"
+#define MODULE_TXDISABLE_FORMAT     "/sys/bus/i2c/devices/37-0062/module_tx_disable_%d"
+#define MODULE_RESET_CPLD2_FORMAT   "/sys/bus/i2c/devices/36-0061/module_reset_%d"
+#define MODULE_RESET_CPLD3_FORMAT   "/sys/bus/i2c/devices/37-0062/module_reset_%d"
+#define MODULE_LPMODE_CPLD2_FORMAT  "/sys/bus/i2c/devices/36-0061/module_lpmode_%d"
+#define MODULE_LPMODE_CPLD3_FORMAT  "/sys/bus/i2c/devices/37-0062/module_lpmode_%d"
 
 #define NUM_OF_SFP_PORT 34
 static const int port_bus_index[NUM_OF_SFP_PORT] = {
-	 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
-	17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-	33, 34 
+	 2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16, 17,
+	18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+	34, 35
 };
 
 #define PORT_BUS_INDEX(port) (port_bus_index[port-1])

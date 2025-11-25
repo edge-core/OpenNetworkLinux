@@ -70,6 +70,12 @@ def init_ipmi():
     print('Failed to initialize IPMI dev interface')
     return False
 
+def get_i2c_bus_num_offset():
+    cmd = 'cat /sys/bus/i2c/devices/i2c-0/name'
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    return 1 if b'iSMT' in stdout else 0
+
 class OnlPlatform_x86_64_accton_as9737_32db_r0(OnlPlatformAccton,
                                                OnlPlatformPortConfig_32x400_1x10_1x1):
     PLATFORM='x86-64-accton-as9737-32db-r0'
@@ -91,15 +97,17 @@ class OnlPlatform_x86_64_accton_as9737_32db_r0(OnlPlatformAccton,
         for m in [ 'i2c-ocores', 'fpga', 'mux', 'cpld', 'fan', 'psu', 'thermal', 'sys', 'leds' ]:
             self.insmod("x86-64-accton-as9737-32db-%s.ko" % m)
 
+        bus_offset = get_i2c_bus_num_offset()
+
         ########### initialize I2C bus 0 ###########
         self.new_i2c_devices(
             [
                 # initialize multiplexer (PCA9548)
-                ('as9737_32db_mux', 0x77, 0),
+                ('as9737_32db_mux', 0x77, 0+bus_offset),
 
                 # initialize CPLDs
-                ('as9737_32db_cpld2', 0x61, 35),
-                ('as9737_32db_cpld3', 0x62, 36),
+                ('as9737_32db_cpld2', 0x61, 36),
+                ('as9737_32db_cpld3', 0x62, 37),
 
                 # EEPROM
                 #('24c02', 0x56, 0),
@@ -108,15 +116,15 @@ class OnlPlatform_x86_64_accton_as9737_32db_r0(OnlPlatformAccton,
 
         # initialize SFP devices
         for port in range(1, 17):
-            subprocess.call('echo 0 > /sys/bus/i2c/devices/35-0061/module_reset_%d' % (port), shell=True)
+            subprocess.call('echo 0 > /sys/bus/i2c/devices/36-0061/module_reset_%d' % (port), shell=True)
 
         for port in range(17, 33):
-            subprocess.call('echo 0 > /sys/bus/i2c/devices/36-0062/module_reset_%d' % (port), shell=True)
+            subprocess.call('echo 0 > /sys/bus/i2c/devices/37-0062/module_reset_%d' % (port), shell=True)
 
         sfp_bus = [
-             1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
-            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-            33, 34
+             2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17,
+            18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+            34, 35
         ]
 
         for port in range(1, len(sfp_bus)+1):
