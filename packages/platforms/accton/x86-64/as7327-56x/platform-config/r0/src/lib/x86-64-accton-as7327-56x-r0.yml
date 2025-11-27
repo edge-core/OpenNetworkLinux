@@ -1,0 +1,37 @@
+---
+
+######################################################################
+#
+# platform-config for AS7327
+#
+######################################################################
+
+x86-64-accton-as7327-56x-r0:
+
+  grub:
+
+    serial: >-
+      --port=0x3f8
+      --speed=115200
+      --word=8
+      --parity=no
+      --stop=1
+
+    kernel:
+      <<: *kernel-4-14
+
+    args: >-
+      nopat
+      console=ttyS0,115200n8
+
+  interfaces:
+    ma1:
+      name: "eth0"
+    eno1:
+      name: "eth1"
+    enp3s0f1:
+      name: "eth2"
+    enp4s0f0:
+      name: "eth3"
+    enp4s0f1:
+      name: "eth4"
